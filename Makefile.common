@@ -1,0 +1,18 @@
+LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
+
+INCFLAGS := -I$(LIBRETRO_COMM_DIR)/include
+
+ifneq (,$(findstring msvc2003,$(platform)))
+INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include/compat/msvc
+endif
+
+SOURCES_C := $(CORE_DIR)/libretro.c \
+	$(CORE_DIR)/libretrodb/libretrodb_tool_gui.c \
+   $(CORE_DIR)/libretrodb/bintree.c \
+   $(CORE_DIR)/libretrodb/libretrodb.c \
+	$(CORE_DIR)/libretrodb/query.c \
+   $(CORE_DIR)/libretrodb/rmsgpack_dom.c \
+   $(CORE_DIR)/libretrodb/rmsgpack.c \
+   $(CORE_DIR)/ugui/ugui.c \
+   $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
+   $(LIBRETRO_COMM_DIR)/compat/compat_fnmatch.c
