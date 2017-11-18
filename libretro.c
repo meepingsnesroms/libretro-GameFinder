@@ -24,10 +24,8 @@ static retro_input_state_t input_state_cb;
 
 char database_path[PATH_MAX];
 char thumbnails_path[PATH_MAX];
-//keys libretro_keys;
 
-uint8_t  keyboard_keys[RETROK_LAST];
-//uint8_t  last_frame_keyboard_keys[128];
+uint8_t  keyboard_keys[KEYBOARD_KEY_COUNT];
 uint32_t framebuffer[320*240];
 
 void libretro_log_printf(const char *fmt, ...)
@@ -144,17 +142,6 @@ void retro_reset(void)
 void retro_run(void)
 {
    input_poll_cb();
-
-   /*
-   libretro_keys.up    = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP);
-   libretro_keys.right = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT);
-   libretro_keys.down  = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN);
-   libretro_keys.left  = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT);
-   libretro_keys.a     = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A);
-   libretro_keys.b     = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B);
-   libretro_keys.x     = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X);
-   libretro_keys.y     = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y);
-   */
    
    for (int j = 0; j < RETROK_LAST; j++)
       keyboard_keys[j] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, j) ? 1 : 0;
