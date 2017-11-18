@@ -29,6 +29,7 @@
 #include "rmsgpack_dom.h"
 #include "libretrodb_tool_gui.h"
 #include "../libretro_exported.h"
+#include "../libretro.h"
 #include "../ugui/ugui.h"
 
 
@@ -63,7 +64,8 @@ bool last_db_call_success;
 UG_GUI     fb_gui;
 UG_WINDOW  fb_window;
 UG_OBJECT  fb_objects[MAX_OBJECTS];
-keys       last_frame_keys;
+//keys       last_frame_keys;
+uint8_t    last_frame_keyboard_keys[128];
 
 uint32_t   thumbnail_fb[60*60];
 UG_IMAGE   game_thumbnail;
@@ -194,7 +196,10 @@ void set_main_window(){
    list_index_action[1] = SIMPLE_QUERY;
    list_index_action[2] = TEXT_QUERY;
    
-   UG_WindowSetTitleText(&fb_window, "Main");
+   //Needed to refresh the textbox, even though it is just setting the same string
+   UG_TextboxSetText(&fb_window, 0, &textbox_string[0][0]);
+   UG_TextboxSetText(&fb_window, 1, &textbox_string[1][0]);
+   UG_TextboxSetText(&fb_window, 2, &textbox_string[2][0]);
    
    list_length = 3;
    selected_entry = 0;
@@ -212,24 +217,25 @@ bool init_gui_db_tool()
    if (!db || !cur)
       return false;
    
-   passed = (UG_Init(&fb_gui, &write_pixel, SCREEN_WIDTH, SCREEN_HEIGHT) == UG_RESULT_OK);
-   if (passed != UG_RESULT_OK)
-      return false;
-   
+   UG_Init(&fb_gui, &write_pixel, SCREEN_WIDTH, SCREEN_HEIGHT);
    UG_FontSelect(&FONT_8X8);
    
    passed = UG_WindowCreate(&fb_window, fb_objects, MAX_OBJECTS, window_callback);
    if (passed != UG_RESULT_OK)
       return false;
    
-   int new_textbox_x = 0;
+   UG_WindowSetStyle(&fb_window, WND_STYLE_HIDE_TITLE | WND_STYLE_2D);
+   UG_WindowSetForeColor(&fb_window, C_WHITE);
+   UG_WindowSetBackColor(&fb_window, C_DEEP_SKY_BLUE);
+   
+   int new_textbox_y = 0;
    for(int entry = 0; entry < ITEM_LIST_ENTRYS; entry++)
    {
-      UG_TextboxCreate(&fb_window, list_entrys, entry, new_textbox_x, 0/*y start*/, new_textbox_x + 10, TEXTBOX_PIXEL_WIDTH/*y end*/);
+      UG_TextboxCreate(&fb_window, &list_entrys[entry], entry, 0/*x start*/, new_textbox_y, TEXTBOX_PIXEL_WIDTH/*x end*/, new_textbox_y + TEXTBOX_PIXEL_HEIGHT - 1);
       UG_TextboxSetAlignment(&fb_window, entry, ALIGN_CENTER_LEFT);
       UG_TextboxSetText(&fb_window, entry, textbox_string[entry]);
       UG_TextboxShow(&fb_window, entry);
-      new_textbox_x += TEXTBOX_PIXEL_HEIGHT;
+      new_textbox_y += TEXTBOX_PIXEL_HEIGHT;
    }
    
    //TODO: add thumbnail image box object
@@ -253,7 +259,9 @@ void libretro_db_gui_render()
 {
    int64_t page;
    int64_t index;
+   static int64_t last_index = 0;
    
+   /*
    if(libretro_keys.up && !last_frame_keys.up)
    {
       if(selected_entry - 1 >= 0)selected_entry--;
@@ -276,8 +284,76 @@ void libretro_db_gui_render()
       else selected_entry = list_length - 1;
    }
    
+   if(libretro_keys.a && !last_frame_keys.a)
+   {
+      //select
+   }
+   
+   if(libretro_keys.b && !last_frame_keys.b)
+   {
+      //go back
+   }
+   
+   if(libretro_keys.x && !last_frame_keys.x)
+   {
+      //skip parameter
+   }
+   */
+   
+   if(keyboard_keys[] && !last_frame_keys.up)
+   {
+      if(selected_entry - 1 >= 0)selected_entry--;
+   }
+   
+   if(libretro_keys.down && !last_frame_keys.down)
+   {
+      if(selected_entry + 1 < list_length)selected_entry++;
+   }
+   
+   if(libretro_keys.left && !last_frame_keys.left && list_length > ITEM_LIST_ENTRYS)
+   {
+      if(selected_entry - ITEM_LIST_ENTRYS >= 0)selected_entry -= ITEM_LIST_ENTRYS;//flip the page
+      else selected_entry = 0;
+   }
+   
+   if(libretro_keys.right && !last_frame_keys.right && list_length > ITEM_LIST_ENTRYS)
+   {
+      if(selected_entry + ITEM_LIST_ENTRYS < list_length)selected_entry += ITEM_LIST_ENTRYS;//flip the page
+      else selected_entry = list_length - 1;
+   }
+   
+   if(libretro_keys.a && !last_frame_keys.a)
+   {
+      //select
+   }
+   
+   if(libretro_keys.b && !last_frame_keys.b)
+   {
+      //go back
+   }
+   
+   if(libretro_keys.x && !last_frame_keys.x)
+   {
+      //skip parameter
+   }
+   
    page  = selected_entry / ITEM_LIST_ENTRYS;
    index = selected_entry % ITEM_LIST_ENTRYS;
+   
+   if(index != last_index)
+   {
+      //update item colors
+      //UG_TextboxSetForeColor(&fb_window, last_index, C_WHITE);
+      UG_TextboxSetBackColor(&fb_window, last_index, C_DEEP_SKY_BLUE);
+      
+      //UG_TextboxSetForeColor(&fb_window, index, C_WHITE);
+      UG_TextboxSetBackColor(&fb_window, index, C_SKY_BLUE);
+   }
+   
+   
+   last_index = index;
+   memcpy(last_frame_keyboard_keys, keyboard_keys, 128);
+   //last_frame_keys = libretro_keys;
    
    UG_Update();
 }

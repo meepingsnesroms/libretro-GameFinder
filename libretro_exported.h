@@ -18,11 +18,15 @@ typedef struct
    bool right;
    bool a;
    bool b;
+   bool x;
+   bool y;
 }keys;
 
 extern char database_path[PATH_MAX];
 extern char thumbnails_path[PATH_MAX];
-extern keys libretro_keys;
+//extern keys libretro_keys;
+extern uint8_t  keyboard_keys[128];
+//extern uint8_t  last_frame_keyboard_keys[128];
 extern uint32_t framebuffer[320*240];
 
 extern void libretro_log_printf(const char *fmt, ...);
