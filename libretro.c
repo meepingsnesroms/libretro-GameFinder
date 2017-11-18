@@ -9,15 +9,15 @@
 #include "libretro_exported.h"
 #include "libretrodb/libretrodb_tool_gui.h"
 
-retro_log_printf_t log_cb;
-retro_video_refresh_t video_cb;
+static retro_log_printf_t log_cb;
+static retro_video_refresh_t video_cb;
 
 #if 0
 static retro_audio_sample_t audio_cb;
 static retro_audio_sample_batch_t audio_batch_cb;
 #endif
 
-retro_environment_t environ_cb;
+static retro_environment_t environ_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 
@@ -26,7 +26,7 @@ char database_path[PATH_MAX];
 char thumbnails_path[PATH_MAX];
 
 uint8_t  keyboard_keys[KEYBOARD_KEY_COUNT];
-uint32_t framebuffer[320*240];
+uint32_t framebuffer[SCREEN_WIDTH * SCREEN_HEIGHT];
 
 void libretro_log_printf(const char *fmt, ...)
 {
@@ -51,7 +51,12 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 
 void retro_init(void)
 {
+   struct retro_log_callback log;
    
+   if (environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log))
+      log_cb = log.log;
+   else
+      log_cb = fallback_log;
 }
 
 void retro_deinit(void)
@@ -96,14 +101,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
 void retro_set_environment(retro_environment_t cb)
 {
-   struct retro_log_callback logging;
-
    environ_cb = cb;
-
-   if (cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &logging))
-      log_cb = logging.log;
-   else
-      log_cb = fallback_log;
 }
 
 void retro_set_audio_sample(retro_audio_sample_t cb)
@@ -139,16 +137,49 @@ void retro_reset(void)
 {
 }
 
-void retro_run(void)
+void update_input()
 {
+   int i;
+   
    input_poll_cb();
    
-   for (int j = 0; j < RETROK_LAST; j++)
-      keyboard_keys[j] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, j) ? 1 : 0;
+   //numbers
+   for (i = RETROK_0; i <= RETROK_9; i++)
+      keyboard_keys[i] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, i) ? 1 : 0;
+   
+   //letters
+   for (i = RETROK_a; i <= RETROK_z; i++)
+      keyboard_keys[i] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, i) ? 1 : 0;
+   
+   //arrows
+   keyboard_keys[RETROK_UP] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_UP) ? 1 : 0;
+   keyboard_keys[RETROK_DOWN] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_DOWN) ? 1 : 0;
+   keyboard_keys[RETROK_LEFT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LEFT) ? 1 : 0;
+   keyboard_keys[RETROK_RIGHT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RIGHT) ? 1 : 0;
+   
+   //actions
+   keyboard_keys[RETROK_RETURN] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RETURN) ? 1 : 0;
+   keyboard_keys[RETROK_DELETE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_DELETE) ? 1 : 0;
+   
+   //modifiers
+   keyboard_keys[RETROK_LSHIFT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LSHIFT) ? 1 : 0;
+   keyboard_keys[RETROK_RSHIFT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RSHIFT) ? 1 : 0;
+   
+   //symbols
+   keyboard_keys[RETROK_LEFTBRACKET] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LEFTBRACKET) ? 1 : 0;
+   keyboard_keys[RETROK_RIGHTBRACKET] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RIGHTBRACKET) ? 1 : 0;
+   keyboard_keys[RETROK_COLON] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_COLON) ? 1 : 0;
+   keyboard_keys[RETROK_QUOTE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_QUOTE) ? 1 : 0;
+   keyboard_keys[RETROK_UNDERSCORE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_UNDERSCORE) ? 1 : 0;
+}
+
+void retro_run(void)
+{
+   update_input();
    
    libretro_db_gui_render();
 
-   video_cb(framebuffer, 320, 240, 320 * sizeof(uint32_t));
+   video_cb(framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH * sizeof(uint32_t));
 }
 
 bool retro_load_game(const struct retro_game_info *info)
@@ -163,6 +194,8 @@ bool retro_load_game(const struct retro_game_info *info)
    }
    
    strcpy(database_path, info->path);
+   
+   memset(keyboard_keys, 0, KEYBOARD_KEY_COUNT);
    
    if(!init_gui_db_tool())
       return false;

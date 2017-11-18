@@ -4973,6 +4973,13 @@ void UG_PutChar( char chr, UG_S16 x, UG_S16 y, UG_COLOR fc, UG_COLOR bc )
 	_UG_PutChar(chr,x,y,fc,bc,&gui->font);
 }
 
+void UG_ConsoleClear( void )
+{
+   gui->console.x_pos = gui->console.x_start;
+   gui->console.y_pos = gui->console.y_start;
+   UG_FillFrame(gui->console.x_start,gui->console.y_start,gui->console.x_end,gui->console.y_end,gui->console.back_color);
+}
+
 void UG_ConsolePutString( char* str )
 {
    char chr;

@@ -10,9 +10,24 @@ enum ui_window
    SIMPLE_QUERY,
    TEXT_QUERY,
    
+   PICK_PARAM,
+   SHOW_GAME,
+   SHOW_GAME_PROPERTY,
    
    NO_MATCHING_GAMES,
    LAST_WINDOW = INT_MAX
+};
+
+enum propertys
+{
+   NAME = 0,
+   RELEASE_YEAR,
+   RELEASE_MONTH,
+   DEVELOPER,
+   GENRE,
+   
+   
+   LAST_PROPERTY = INT_MAX
 };
 
 typedef struct
