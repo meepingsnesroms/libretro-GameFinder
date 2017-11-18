@@ -30,16 +30,21 @@
 #include "../libretro_exported.h"
 #include "../ugui/ugui.h"
 
-
-
+#define FONT_WIDTH 8
+#define FONT_HEIGHT 8
 #define MAX_OBJECTS 100
-#define ITEM_LIST_ENTRYS 20
-#define MAX_TEXT_ENTRY_SIZE 300
 
-const char* query_types[3] = {
-   "List all games",
-   "Simple Query",
-   "Text Query"
+#define TEXTBOX_PIXEL_MARGIN 1 //add 1 pixel border around text
+#define TEXTBOX_PIXEL_WIDTH  (SCREEN_WIDTH / 4 * 3) //3/4 of the screen
+#define TEXTBOX_PIXEL_HEIGHT (FONT_HEIGHT + (TEXTBOX_PIXEL_MARGIN * 2))
+
+#define ITEM_LIST_ENTRYS (SCREEN_HEIGHT / TEXTBOX_PIXEL_HEIGHT - 1)
+#define ITEM_STRING_SIZE (TEXTBOX_PIXEL_WIDTH / FONT_WIDTH - 1)
+
+const char* window_titles[3] = {
+   "Main",
+   "Search",
+   "Game Info"
 };
 
 
@@ -59,8 +64,11 @@ UG_OBJECT  fb_objects[MAX_OBJECTS];
 uint32_t   thumbnail_fb[60*60];
 UG_IMAGE   game_thumbnail;
 
-char       textbox_string[ITEM_LIST_ENTRYS][MAX_TEXT_ENTRY_SIZE];
+char       textbox_string[ITEM_LIST_ENTRYS][ITEM_STRING_SIZE];
 UG_TEXTBOX list_entrys[ITEM_LIST_ENTRYS];
+int        list_index_action[ITEM_LIST_ENTRYS];
+int        list_length;
+int        selected_entry;
 
 
 void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
@@ -110,6 +118,8 @@ void get_names(char* query_exp)
       
       rmsgpack_dom_value_free(&item);
    }
+   
+   libretrodb_cursor_close(cur);
 }
 
 void find(char* query_exp)
@@ -140,6 +150,8 @@ void find(char* query_exp)
       rmsgpack_dom_value_free(&item);
       */
    }
+   
+   libretrodb_cursor_close(cur);
 }
 
 void list()
@@ -161,6 +173,8 @@ void list()
       rmsgpack_dom_value_free(&item);
       */
    }
+   
+   libretrodb_cursor_close(cur);
 }
 
 #if 0
@@ -331,10 +345,25 @@ void make_query_expression()
    
 }
 
+void set_main_window(){
+   strcpy(textbox_string[0] "List all games");
+   strcpy(textbox_string[1] "Simple Query");
+   strcpy(textbox_string[2] "Text Query");
+   list_index_action[0] = LIST_ALL_GAMES;
+   list_index_action[1] = SIMPLE_QUERY;
+   list_index_action[2] = TEXT_QUERY;
+   
+   UG_WindowSetTitleText(&fb_window, "Main");
+   
+   list_length = 3;
+   selected_entry = 0;
+   
+   UG_Update();
+}
+
 bool init_gui_db_tool()
 {
    bool passed;
-   uint8_t object_cnt;
    db  = libretrodb_new();
    cur = libretrodb_cursor_new();
    
@@ -345,23 +374,29 @@ bool init_gui_db_tool()
    if (!passed)
       return false;
    
-   for(int entrys = 0; entrys < ITEM_LIST_ENTRYS; entrys++)
-   {
-      fb_objects[]
-      object_cnt++;
-   }
+   UG_FontSelect(&FONT_8X8);
    
    passed = UG_WindowCreate(&fb_window, fb_objects, MAX_OBJECTS, window_callback);
    if (!passed)
       return false;
    
-   UG_FontSelect(&FONT_8X8);
+   int new_textbox_x = 0;
+   for(int entry = 0; entry < ITEM_LIST_ENTRYS; entry++)
+   {
+      UG_TextboxCreate(&fb_window, list_entrys, entry, new_textbox_x, 0/*y start*/, new_textbox_x + 10, TEXTBOX_PIXEL_WIDTH/*y end*/);
+      UG_TextboxSetAlignment(&fb_window, entry, ALIGN_CENTER_LEFT);
+      new_textbox_x += TEXTBOX_PIXEL_HEIGHT;
+   }
+   
+   selected_entry = 0;
    
    return true;
 }
 
 void close_gui_db_tool()
 {
+   UG_WindowDelete(&fb_window);
+   
    libretrodb_close(db);
    libretrodb_free(db);
    libretrodb_cursor_free(cur);
@@ -370,5 +405,5 @@ void close_gui_db_tool()
 void libretro_db_gui_render()
 {
    
-   //UG_Update();
+   UG_Update();
 }

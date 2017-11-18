@@ -3,22 +3,26 @@
 
 #include <limits.h>
 
-enum db_command
+enum ui_window
 {
-   LIST_ALL_GAMES = 0,
+   MAIN_WINDOW = 0,
+   LIST_ALL_GAMES,
    SIMPLE_QUERY,
    TEXT_QUERY,
    
-   LAST_COMMAND = INT_MAX
+   
+   NO_MATCHING_GAMES,
+   LAST_WINDOW = INT_MAX
 };
 
 typedef struct
 {
-   int game_year;
-   int game_month;
+   int  game_year[2];//start<->end years, leave the same to search one year
+   int  game_month[2];////start<->end months, leave the same to search one month
    char name[200];
    char genre[100];
    char developer[100];
+   char platforms[100];
    //char tags[500];//no tags yet
 }simple_query_expression;//set propertys to -1 to ignore, for strings set first letter to NULL terminator '\0'
 
