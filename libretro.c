@@ -50,7 +50,13 @@ static void fallback_log(enum retro_log_level level, const char *fmt, ...)
 
 void retro_init(void)
 {
+   int i;
+   struct retro_log_callback log;
    
+   if (environ_cb(RETRO_ENVIRONMENT_GET_LOG_INTERFACE, &log))
+      log_cb = log.log;
+   else
+      log_cb = NULL;
 }
 
 void retro_deinit(void)
@@ -72,12 +78,12 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
 void retro_get_system_info(struct retro_system_info *info)
 {
    memset(info, 0, sizeof(*info));
-   info->library_name     = "GameFinder";
+   info->library_name     = "Game Finder";
 #ifndef GIT_VERSION
 #define GIT_VERSION ""
 #endif
    info->library_version  = "v0.1" GIT_VERSION;
-   info->need_fullpath    = false;
+   info->need_fullpath    = true;
    info->valid_extensions = "rdb";
 }
 
@@ -156,12 +162,18 @@ void retro_run(void)
 
 bool retro_load_game(const struct retro_game_info *info)
 {
-   bool passed;
+   enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
+   
+   if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
+   {
+      if (log_cb)
+         log_cb(RETRO_LOG_INFO, "%s\n", "XRGB8888 is not supported.");
+      return false;
+   }
    
    strcpy(database_path, info->path);
    
-   passed = init_gui_db_tool();
-   if(!passed)
+   if(!init_gui_db_tool())
       return false;
    
    return true;
