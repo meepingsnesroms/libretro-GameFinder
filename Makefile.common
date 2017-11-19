@@ -15,4 +15,5 @@ SOURCES_C := $(CORE_DIR)/libretro.c \
    $(CORE_DIR)/libretrodb/rmsgpack.c \
    $(CORE_DIR)/ugui/ugui.c \
    $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
-   $(LIBRETRO_COMM_DIR)/compat/compat_fnmatch.c
+   $(LIBRETRO_COMM_DIR)/compat/compat_fnmatch.c \
+   $(LIBRETRO_COMM_DIR)/compat/compat_strl.c

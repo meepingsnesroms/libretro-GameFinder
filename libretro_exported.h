@@ -14,9 +14,8 @@
 
 extern char database_path[PATH_MAX];
 extern char thumbnails_path[PATH_MAX];
-//extern keys libretro_keys;
 extern uint8_t  keyboard_keys[KEYBOARD_KEY_COUNT];
-//extern uint8_t  last_frame_keyboard_keys[128];
+extern uint8_t  keyboard_keys_last_frame[KEYBOARD_KEY_COUNT];
 extern uint32_t framebuffer[320*240];
 
 extern void libretro_log_printf(const char *fmt, ...);

@@ -27,6 +27,6 @@ CORE_DIR := ..
 include $(CORE_DIR)/Makefile.common
 
 LOCAL_SRC_FILES    += $(SOURCES_C)
-LOCAL_CFLAGS += -O2 $(INCFLAGS) -std=gnu99 -DINLINE=inline -D__LIBRETRO__
+LOCAL_CFLAGS       += $(INCFLAGS) -std=gnu99 -DINLINE=inline -D__LIBRETRO__
 
 include $(BUILD_SHARED_LIBRARY)

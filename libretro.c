@@ -26,6 +26,7 @@ char database_path[PATH_MAX];
 char thumbnails_path[PATH_MAX];
 
 uint8_t  keyboard_keys[KEYBOARD_KEY_COUNT];
+uint8_t  keyboard_keys_last_frame[KEYBOARD_KEY_COUNT];
 uint32_t framebuffer[SCREEN_WIDTH * SCREEN_HEIGHT];
 
 void libretro_log_printf(const char *fmt, ...)
@@ -143,6 +144,8 @@ void update_input()
    
    input_poll_cb();
    
+   memcpy(keyboard_keys_last_frame, keyboard_keys, KEYBOARD_KEY_COUNT);
+   
    //numbers
    for (i = RETROK_0; i <= RETROK_9; i++)
       keyboard_keys[i] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, i) ? 1 : 0;
@@ -171,6 +174,12 @@ void update_input()
    keyboard_keys[RETROK_COLON] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_COLON) ? 1 : 0;
    keyboard_keys[RETROK_QUOTE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_QUOTE) ? 1 : 0;
    keyboard_keys[RETROK_UNDERSCORE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_UNDERSCORE) ? 1 : 0;
+   
+   for(i = 0; i < KEYBOARD_KEY_COUNT; i++)
+   {
+      if (keyboard_keys[i] && !keyboard_keys_last_frame[i])
+         printf("Key %d was pressed and released.\n", i);
+   }
 }
 
 void retro_run(void)

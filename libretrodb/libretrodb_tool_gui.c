@@ -71,7 +71,6 @@ uint32_t   backup_fb[SCREEN_WIDTH * SCREEN_HEIGHT];
 UG_GUI     fb_gui;
 UG_WINDOW  fb_window;
 UG_OBJECT  fb_objects[MAX_OBJECTS];
-uint8_t    last_frame_keyboard_keys[KEYBOARD_KEY_COUNT];
 
 uint32_t*  thumbnail;
 int        thumbnail_w;
@@ -83,10 +82,13 @@ int        list_index_action[ITEM_LIST_ENTRYS];
 int        list_index_action_param[ITEM_LIST_ENTRYS];
 int64_t    list_length;
 int64_t    selected_entry;
+int64_t    (*list_handler)(int64_t index);
 
 bool       typing_mode;
 char       console_message[CONSOLE_MESSAGE_SIZE];
-
+char       kbd_str[KEYBOARD_STRING_SIZE];
+int        kbd_str_index;
+void       (*process_kbd_string)();
 
 void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
 {
@@ -98,7 +100,8 @@ void window_callback(UG_MESSAGE* message)
    //do nothing
 }
 
-void get_names(char* query_exp)
+#if 0
+int64_t get_names(char* query_exp, int64_t index)
 {
    last_db_call_success = true;
    error = NULL;
@@ -139,7 +142,7 @@ void get_names(char* query_exp)
    libretrodb_cursor_close(cur);
 }
 
-void find(char* query_exp)
+int64_t find(char* query_exp, int64_t index)
 {
    last_db_call_success = true;
    error = NULL;
@@ -170,28 +173,56 @@ void find(char* query_exp)
    
    libretrodb_cursor_close(cur);
 }
+#endif
 
-void list()
+int64_t list_all(int64_t index)
 {
+   int64_t total_items = 0;
+   int64_t items_returned = 0;
+   
    last_db_call_success = true;
    
    if ((rv = libretrodb_cursor_open(db, cur, NULL)) != 0)
    {
       libretro_log_printf("Could not open cursor: %s\n", strerror(-rv));
       last_db_call_success = false;
-      return;
+      return 0;
    }
    
    while (libretrodb_cursor_read_item(cur, &item) == 0)
    {
-      /*
-      rmsgpack_dom_value_print(&item);
-      printf("\n");
+      if (item.type == RDT_MAP) //should always be true, but if false the program would segfault
+      {
+         for (int64_t i = 0; i < item.val.map.len; i++)
+         {
+            if (item.val.map.items[i].key.type == RDT_STRING && (strncmp(item.val.map.items[i].key.val.string.buff, "name", item.val.map.items[i].key.val.string.len) == 0))
+            {
+               if (index > 0)//skip elements till proper index
+               {
+                  index--;
+               }
+               else {
+                  if (items_returned < ITEM_LIST_ENTRYS)
+                  {
+                     uint32_t max_length = ITEM_STRING_SIZE;
+                     //if (item.val.map.items[i].value.val.string.len < max_length)max_length = item.val.map.items[i].value.val.string.len;
+                     strncpy(textbox_string[items_returned], item.val.map.items[i].value.val.string.buff, max_length);
+                     UG_TextboxSetText(&fb_window, items_returned, textbox_string[items_returned]);
+                     items_returned++;
+                  }
+               }
+               
+               total_items++;
+               break;
+            }
+         }
+      }
+      
       rmsgpack_dom_value_free(&item);
-      */
    }
    
    libretrodb_cursor_close(cur);
+   return total_items;
 }
 
 void make_query_expression()
@@ -215,9 +246,9 @@ void set_main_window()
    list_index_action[2] = TEXT_QUERY;
    
    //Needed to refresh the textbox, even though it is just setting the same string
-   UG_TextboxSetText(&fb_window, 0, &textbox_string[0][0]);
-   UG_TextboxSetText(&fb_window, 1, &textbox_string[1][0]);
-   UG_TextboxSetText(&fb_window, 2, &textbox_string[2][0]);
+   UG_TextboxSetText(&fb_window, 0, textbox_string[0]);
+   UG_TextboxSetText(&fb_window, 1, textbox_string[1]);
+   UG_TextboxSetText(&fb_window, 2, textbox_string[2]);
    
    list_length = 3;
    selected_entry = 0;
@@ -232,12 +263,14 @@ void set_main_window()
 void set_text_query()
 {
    typing_mode = true;
+   memset(kbd_str, 0, KEYBOARD_STRING_SIZE);
+   kbd_str_index = 0;
    
    memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
    
    strcpy(console_message, "Enter your text query:\n");
    
-   UG_ConsoleSetArea(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+   UG_ConsoleSetArea(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
    UG_ConsoleClear();
    UG_ConsolePutString(console_message);
 }
@@ -286,7 +319,6 @@ bool init_gui_db_tool()
    //TODO: add thumbnail images
    
    typing_mode = false;
-   memset(last_frame_keyboard_keys, 0, KEYBOARD_KEY_COUNT);
    
    set_main_window();
    UG_WindowShow(&fb_window);
@@ -312,18 +344,18 @@ void libretro_db_gui_render()
    int64_t page;
    int64_t index;
    static int64_t last_index = 0;
+   static int64_t last_page  = 0;
    
    if (typing_mode)
    {
-      static char kbd_str[KEYBOARD_STRING_SIZE] = {0};
-      static int  kbd_str_index = 0;
       char        kbd_key = 0;
       
-      for (int i = 0; i < 128/*all ascii codes*/; i++)
+      for (int i = 0; i < 128; i++)
       {
-         if (keyboard_keys[i] && !last_frame_keyboard_keys[i])
+         if (keyboard_keys[i] && !keyboard_keys_last_frame[i])
          {
             kbd_key = i;
+            printf("Key %d second check.\n", i);
          }
       }
       
@@ -343,11 +375,12 @@ void libretro_db_gui_render()
       else if (kbd_key == 13/*enter/carriage return*/)
       {
          //send string
+         typing_mode = false;
          
-         //TODO
+         //restore gui mode
+         memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
          
-         kbd_str[0] = '\0';
-         kbd_str_index = 0;
+         process_kbd_string();
       }
       else if (kbd_key == 127/*delete*/)
       {
@@ -365,23 +398,23 @@ void libretro_db_gui_render()
    }
    else
    {
-      if (keyboard_keys[RETROK_UP] && !last_frame_keyboard_keys[RETROK_UP])
+      if (keyboard_keys[RETROK_UP] && !keyboard_keys_last_frame[RETROK_UP])
       {
          if(selected_entry - 1 >= 0)selected_entry--;
       }
       
-      if (keyboard_keys[RETROK_DOWN] && !last_frame_keyboard_keys[RETROK_DOWN])
+      if (keyboard_keys[RETROK_DOWN] && !keyboard_keys_last_frame[RETROK_DOWN])
       {
          if(selected_entry + 1 < list_length)selected_entry++;
       }
       
-      if (keyboard_keys[RETROK_LEFT] && !last_frame_keyboard_keys[RETROK_LEFT] && list_length > ITEM_LIST_ENTRYS)
+      if (keyboard_keys[RETROK_LEFT] && !keyboard_keys_last_frame[RETROK_LEFT] && list_length > ITEM_LIST_ENTRYS)
       {
          if(selected_entry - ITEM_LIST_ENTRYS >= 0)selected_entry -= ITEM_LIST_ENTRYS;//flip the page
          else selected_entry = 0;
       }
       
-      if (keyboard_keys[RETROK_RIGHT] && !last_frame_keyboard_keys[RETROK_RIGHT] && list_length > ITEM_LIST_ENTRYS)
+      if (keyboard_keys[RETROK_RIGHT] && !keyboard_keys_last_frame[RETROK_RIGHT] && list_length > ITEM_LIST_ENTRYS)
       {
          if(selected_entry + ITEM_LIST_ENTRYS < list_length)selected_entry += ITEM_LIST_ENTRYS;//flip the page
          else selected_entry = list_length - 1;
@@ -390,13 +423,18 @@ void libretro_db_gui_render()
       page  = selected_entry / ITEM_LIST_ENTRYS;
       index = selected_entry % ITEM_LIST_ENTRYS;
       
-      if (keyboard_keys[RETROK_RETURN] && !last_frame_keyboard_keys[RETROK_RETURN])
+      if (page != last_page && list_handler)
+         list_length = list_handler(page * ITEM_LIST_ENTRYS);
+      
+      if (keyboard_keys[RETROK_RETURN] && !keyboard_keys_last_frame[RETROK_RETURN])
       {
          libretro_log_printf("List Index Action:%d\n", list_index_action[index]);
          //select
          switch (list_index_action[index])
          {
             case LIST_ALL_GAMES:
+               list_handler = list_all;
+               selected_entry = 0;
                break;
             case TEXT_QUERY:
                set_text_query();
@@ -406,12 +444,12 @@ void libretro_db_gui_render()
          }
       }
       
-      if (keyboard_keys[RETROK_BACKSPACE] && !last_frame_keyboard_keys[RETROK_BACKSPACE])
+      if (keyboard_keys[RETROK_BACKSPACE] && !keyboard_keys_last_frame[RETROK_BACKSPACE])
       {
          //go back
       }
       
-      if (keyboard_keys[RETROK_TAB] && !last_frame_keyboard_keys[RETROK_TAB])
+      if (keyboard_keys[RETROK_TAB] && !keyboard_keys_last_frame[RETROK_TAB])
       {
          //skip parameter
       }
@@ -427,9 +465,8 @@ void libretro_db_gui_render()
       }
 
       last_index = index;
+      last_page  = page;
       
       UG_Update();
    }
-   
-   memcpy(last_frame_keyboard_keys, keyboard_keys, KEYBOARD_KEY_COUNT);
 }
