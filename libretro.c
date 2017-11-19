@@ -174,12 +174,6 @@ void update_input()
    keyboard_keys[RETROK_COLON] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_COLON) ? 1 : 0;
    keyboard_keys[RETROK_QUOTE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_QUOTE) ? 1 : 0;
    keyboard_keys[RETROK_UNDERSCORE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_UNDERSCORE) ? 1 : 0;
-   
-   for(i = 0; i < KEYBOARD_KEY_COUNT; i++)
-   {
-      if (keyboard_keys[i] && !keyboard_keys_last_frame[i])
-         printf("Key %d was pressed and released.\n", i);
-   }
 }
 
 void retro_run(void)

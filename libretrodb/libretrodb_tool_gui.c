@@ -285,6 +285,12 @@ bool init_gui_db_tool()
    if (!db || !cur)
       return false;
    
+   if ((rv = libretrodb_open(path, db)) != 0)
+   {
+      libretro_log_printf("Could not open db file '%s': %s\n", path, strerror(-rv));
+      return false;
+   }
+   
    UG_Init(&fb_gui, &write_pixel, SCREEN_WIDTH, SCREEN_HEIGHT);
    UG_FontSelect(&FONT_8X8);
    
@@ -339,134 +345,148 @@ void close_gui_db_tool()
       libretrodb_cursor_free(cur);
 }
 
-void libretro_db_gui_render()
+static void typing_mode_frame()
+{
+   int kbd_key = 0;
+   
+   for (int i = 0; i < KEYBOARD_KEY_COUNT; i++)
+   {
+      if (keyboard_keys[i] && !keyboard_keys_last_frame[i])
+      {
+         kbd_key = i;
+      }
+   }
+   
+   if (kbd_key >= 32/*space*/ && kbd_key <= 126)
+   {
+      if (kbd_str_index < KEYBOARD_STRING_SIZE - 1/*null terminator*/)
+      {
+         kbd_str[kbd_str_index] = kbd_key;
+         kbd_str[kbd_str_index + 1] = '\0';
+         kbd_str_index++;
+         
+         UG_ConsoleClear();
+         UG_ConsolePutString(console_message);
+         UG_ConsolePutString(kbd_str);
+      }
+   }
+   else if (kbd_key == RETROK_RETURN)
+   {
+      //send string
+      typing_mode = false;
+      
+      //restore gui mode
+      memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
+      
+      process_kbd_string();
+   }
+   else if (kbd_key == RETROK_BACKSPACE/*delete*/)
+   {
+      if (kbd_str_index > 0)
+      {
+         kbd_str_index--;
+         kbd_str[kbd_str_index] = '\0';
+         
+         UG_ConsoleClear();
+         UG_ConsolePutString(console_message);
+         UG_ConsolePutString(kbd_str);
+      }
+   }
+}
+
+static void list_mode_frame()
 {
    int64_t page;
    int64_t index;
    static int64_t last_index = 0;
    static int64_t last_page  = 0;
    
+   if (keyboard_keys[RETROK_UP] && !keyboard_keys_last_frame[RETROK_UP])
+   {
+      if(selected_entry - 1 >= 0)selected_entry--;
+   }
+   
+   if (keyboard_keys[RETROK_DOWN] && !keyboard_keys_last_frame[RETROK_DOWN])
+   {
+      if(selected_entry + 1 < list_length)selected_entry++;
+   }
+   
+   if (keyboard_keys[RETROK_LEFT] && !keyboard_keys_last_frame[RETROK_LEFT] && list_length > ITEM_LIST_ENTRYS)
+   {
+      if(selected_entry - ITEM_LIST_ENTRYS >= 0)selected_entry -= ITEM_LIST_ENTRYS;//flip the page
+      else selected_entry = 0;
+   }
+   
+   if (keyboard_keys[RETROK_RIGHT] && !keyboard_keys_last_frame[RETROK_RIGHT] && list_length > ITEM_LIST_ENTRYS)
+   {
+      if(selected_entry + ITEM_LIST_ENTRYS < list_length)selected_entry += ITEM_LIST_ENTRYS;//flip the page
+      else selected_entry = list_length - 1;
+   }
+   
+   page  = selected_entry / ITEM_LIST_ENTRYS;
+   index = selected_entry % ITEM_LIST_ENTRYS;
+   
+   if (page != last_page && list_handler)
+      list_length = list_handler(page * ITEM_LIST_ENTRYS);
+   
+   if (keyboard_keys[RETROK_RETURN] && !keyboard_keys_last_frame[RETROK_RETURN])
+   {
+      libretro_log_printf("List Index Action:%d\n", list_index_action[index]);
+      //select
+      switch (list_index_action[index])
+      {
+         case LIST_ALL_GAMES:
+            list_handler = list_all;
+            selected_entry = 0;
+            for (int i = 0; i < ITEM_LIST_ENTRYS; i++)
+               list_index_action[i] = SHOW_GAME;
+            list_length = list_all(0);
+            break;
+         case TEXT_QUERY:
+            set_text_query();
+            break;
+         case SIMPLE_QUERY:
+            break;
+         case SHOW_GAME:
+            break;
+      }
+   }
+   
+   if (keyboard_keys[RETROK_BACKSPACE] && !keyboard_keys_last_frame[RETROK_BACKSPACE])
+   {
+      //go back
+   }
+   
+   if (keyboard_keys[RETROK_TAB] && !keyboard_keys_last_frame[RETROK_TAB])
+   {
+      //skip parameter
+   }
+   
+   if (index != last_index)
+   {
+      //update item colors
+      UG_TextboxSetForeColor(&fb_window, last_index, TEXTBOX_DEFAULT_TEXT_COLOR);
+      UG_TextboxSetBackColor(&fb_window, last_index, TEXTBOX_DEFAULT_COLOR);
+      
+      UG_TextboxSetForeColor(&fb_window, index, TEXTBOX_CURSOR_TEXT_COLOR);
+      UG_TextboxSetBackColor(&fb_window, index, TEXTBOX_CURSOR_COLOR);
+   }
+   
+   last_index = index;
+   last_page  = page;
+   
+   UG_Update();
+}
+
+void libretro_db_gui_render()
+{
+   
    if (typing_mode)
    {
-      char        kbd_key = 0;
-      
-      for (int i = 0; i < 128; i++)
-      {
-         if (keyboard_keys[i] && !keyboard_keys_last_frame[i])
-         {
-            kbd_key = i;
-            printf("Key %d second check.\n", i);
-         }
-      }
-      
-      if (kbd_key >= 32/*space*/ && kbd_key <= 126)
-      {
-         if (kbd_str_index < KEYBOARD_STRING_SIZE - 1/*null terminator*/)
-         {
-            kbd_str[kbd_str_index] = kbd_key;
-            kbd_str[kbd_str_index + 1] = '\0';
-            kbd_str_index++;
-            
-            UG_ConsoleClear();
-            UG_ConsolePutString(console_message);
-            UG_ConsolePutString(kbd_str);
-         }
-      }
-      else if (kbd_key == 13/*enter/carriage return*/)
-      {
-         //send string
-         typing_mode = false;
-         
-         //restore gui mode
-         memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
-         
-         process_kbd_string();
-      }
-      else if (kbd_key == 127/*delete*/)
-      {
-         if (kbd_str_index > 0)
-         {
-            kbd_str_index--;
-            kbd_str[kbd_str_index] = '\0';
-            
-            UG_ConsoleClear();
-            UG_ConsolePutString(console_message);
-            UG_ConsolePutString(kbd_str);
-         }
-      }
-      
+      typing_mode_frame();
    }
    else
    {
-      if (keyboard_keys[RETROK_UP] && !keyboard_keys_last_frame[RETROK_UP])
-      {
-         if(selected_entry - 1 >= 0)selected_entry--;
-      }
-      
-      if (keyboard_keys[RETROK_DOWN] && !keyboard_keys_last_frame[RETROK_DOWN])
-      {
-         if(selected_entry + 1 < list_length)selected_entry++;
-      }
-      
-      if (keyboard_keys[RETROK_LEFT] && !keyboard_keys_last_frame[RETROK_LEFT] && list_length > ITEM_LIST_ENTRYS)
-      {
-         if(selected_entry - ITEM_LIST_ENTRYS >= 0)selected_entry -= ITEM_LIST_ENTRYS;//flip the page
-         else selected_entry = 0;
-      }
-      
-      if (keyboard_keys[RETROK_RIGHT] && !keyboard_keys_last_frame[RETROK_RIGHT] && list_length > ITEM_LIST_ENTRYS)
-      {
-         if(selected_entry + ITEM_LIST_ENTRYS < list_length)selected_entry += ITEM_LIST_ENTRYS;//flip the page
-         else selected_entry = list_length - 1;
-      }
-      
-      page  = selected_entry / ITEM_LIST_ENTRYS;
-      index = selected_entry % ITEM_LIST_ENTRYS;
-      
-      if (page != last_page && list_handler)
-         list_length = list_handler(page * ITEM_LIST_ENTRYS);
-      
-      if (keyboard_keys[RETROK_RETURN] && !keyboard_keys_last_frame[RETROK_RETURN])
-      {
-         libretro_log_printf("List Index Action:%d\n", list_index_action[index]);
-         //select
-         switch (list_index_action[index])
-         {
-            case LIST_ALL_GAMES:
-               list_handler = list_all;
-               selected_entry = 0;
-               break;
-            case TEXT_QUERY:
-               set_text_query();
-               break;
-            case SIMPLE_QUERY:
-               break;
-         }
-      }
-      
-      if (keyboard_keys[RETROK_BACKSPACE] && !keyboard_keys_last_frame[RETROK_BACKSPACE])
-      {
-         //go back
-      }
-      
-      if (keyboard_keys[RETROK_TAB] && !keyboard_keys_last_frame[RETROK_TAB])
-      {
-         //skip parameter
-      }
-
-      if (index != last_index)
-      {
-         //update item colors
-         UG_TextboxSetForeColor(&fb_window, last_index, TEXTBOX_DEFAULT_TEXT_COLOR);
-         UG_TextboxSetBackColor(&fb_window, last_index, TEXTBOX_DEFAULT_COLOR);
-         
-         UG_TextboxSetForeColor(&fb_window, index, TEXTBOX_CURSOR_TEXT_COLOR);
-         UG_TextboxSetBackColor(&fb_window, index, TEXTBOX_CURSOR_COLOR);
-      }
-
-      last_index = index;
-      last_page  = page;
-      
-      UG_Update();
+      list_mode_frame();
    }
 }
