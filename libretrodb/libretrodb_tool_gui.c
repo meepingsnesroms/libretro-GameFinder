@@ -37,6 +37,8 @@
 
 #define FONT_WIDTH 8
 #define FONT_HEIGHT 8
+#define FONT_SPACING 0
+
 #define MAX_OBJECTS 100
 #define CONSOLE_MESSAGE_SIZE 200
 #define KEYBOARD_STRING_SIZE 10000
@@ -50,7 +52,7 @@
 #define TEXTBOX_CURSOR_TEXT_COLOR C_WHITE
 
 #define ITEM_LIST_ENTRYS (SCREEN_HEIGHT / TEXTBOX_PIXEL_HEIGHT - 1)
-#define ITEM_STRING_SIZE (TEXTBOX_PIXEL_WIDTH / FONT_WIDTH - 1)
+#define ITEM_STRING_SIZE (TEXTBOX_PIXEL_WIDTH / (FONT_WIDTH + FONT_SPACING))
 
 const char* window_titles[3] = {
    "Main",
@@ -207,6 +209,7 @@ int64_t list_all(int64_t index)
                      uint32_t max_length = ITEM_STRING_SIZE;
                      //if (item.val.map.items[i].value.val.string.len < max_length)max_length = item.val.map.items[i].value.val.string.len;
                      strncpy(textbox_string[items_returned], item.val.map.items[i].value.val.string.buff, max_length);
+                     textbox_string[items_returned][ITEM_STRING_SIZE - 1] = '\0';//strncpy does not null terminate strings that exceed buffer size
                      UG_TextboxSetText(&fb_window, items_returned, textbox_string[items_returned]);
                      items_returned++;
                   }
@@ -219,6 +222,14 @@ int64_t list_all(int64_t index)
       }
       
       rmsgpack_dom_value_free(&item);
+   }
+   
+   while (items_returned < ITEM_LIST_ENTRYS)
+   {
+      //fill end of list with empty strings
+      textbox_string[items_returned][0] = '\0';
+      UG_TextboxSetText(&fb_window, items_returned, textbox_string[items_returned]);
+      items_returned++;
    }
    
    libretrodb_cursor_close(cur);
