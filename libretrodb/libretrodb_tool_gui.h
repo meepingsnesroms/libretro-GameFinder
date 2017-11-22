@@ -2,6 +2,8 @@
 #define __LIBRETRODBTOOLGUI_H__
 
 #include <limits.h>
+#include <retro_miscellaneous.h>
+#include "../libretro_exported.h"
 
 enum ui_window
 {
@@ -40,6 +42,8 @@ typedef struct
    char platforms[100];
    //char tags[500];//no tags yet
 }simple_query_expression;//set propertys to -1 to ignore, for strings set first letter to NULL terminator '\0'
+
+extern char database_path[PATH_MAX_LENGTH];
 
 extern bool init_gui_db_tool();
 extern void close_gui_db_tool();

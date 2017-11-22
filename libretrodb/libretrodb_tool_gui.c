@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include <string/stdstring.h>
+#include <retro_miscellaneous.h>
 
 #include "libretrodb.h"
 #include "rmsgpack_dom.h"
@@ -54,12 +55,12 @@
 #define ITEM_LIST_ENTRYS (SCREEN_HEIGHT / TEXTBOX_PIXEL_HEIGHT - 1)
 #define ITEM_STRING_SIZE (TEXTBOX_PIXEL_WIDTH / (FONT_WIDTH + FONT_SPACING))
 
-const char* window_titles[3] = {
-   "Main",
-   "Search",
-   "Game Info"
-};
+//#define PAGE_NUMBER (selected_entry / ITEM_LIST_ENTRYS)
+//#define PAGE_INDEX  (selected_entry % ITEM_LIST_ENTRYS)
 
+
+char database_path[PATH_MAX_LENGTH];
+char assets_path[PATH_MAX_LENGTH];
 
 int rv;
 libretrodb_t *db;
@@ -75,8 +76,8 @@ UG_WINDOW  fb_window;
 UG_OBJECT  fb_objects[MAX_OBJECTS];
 
 uint32_t*  thumbnail;
-int        thumbnail_w;
-int        thumbnail_h;
+int        thumbnail_width;
+int        thumbnail_height;
 
 char       textbox_string[ITEM_LIST_ENTRYS][ITEM_STRING_SIZE];
 UG_TEXTBOX list_entrys[ITEM_LIST_ENTRYS];
@@ -95,6 +96,45 @@ void       (*process_kbd_string)();
 void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
 {
    framebuffer[y * SCREEN_WIDTH + x] = color;
+}
+
+void draw_thumbnail(char* game_name, unsigned name_length)
+{
+   int total_filename_length;
+   
+   total_filename_length =  strlen(assets_path);
+   total_filename_length += strnlen(game_name, name_length);
+   total_filename_length += strlen(".png");
+   
+   if (total_filename_length <= PATH_MAX_LENGTH)
+   {
+      //string is safe
+      char thumbnail_path[PATH_MAX_LENGTH];
+      strcpy(thumbnail_path,  assets_path);
+      strncat(thumbnail_path, game_name, name_length);
+      strcat(thumbnail_path,  ".png");
+      printf("Thumbnail path:\"%s\"\n", thumbnail_path);
+      get_file_thumbnail(thumbnail_path, thumbnail, thumbnail_width, thumbnail_height);
+   }
+   else
+   {
+      //TODO: return question mark image
+   }
+   
+   /*
+   for(unsigned y = 0; y < thumbnail_height; y++)
+   {
+      for(unsigned x = 0; x < thumbnail_width; x++)
+      {
+         framebuffer[SCREEN_WIDTH * y + TEXTBOX_PIXEL_WIDTH + x] = thumbnail[thumbnail_width * y + x];
+      }
+   }
+   */
+   
+#if 1
+   copy_rect(thumbnail_width, thumbnail_height, thumbnail, 0/*fb1 start x*/, 0/*fb1 start y*/, thumbnail_width, thumbnail_height, SCREEN_WIDTH, SCREEN_HEIGHT, framebuffer, TEXTBOX_PIXEL_WIDTH + 1, 0/*fb2 start y*/);
+#endif
+   
 }
 
 void window_callback(UG_MESSAGE* message)
@@ -206,11 +246,41 @@ int64_t list_all(int64_t index)
                else {
                   if (items_returned < ITEM_LIST_ENTRYS)
                   {
-                     uint32_t max_length = ITEM_STRING_SIZE;
-                     //if (item.val.map.items[i].value.val.string.len < max_length)max_length = item.val.map.items[i].value.val.string.len;
-                     strncpy(textbox_string[items_returned], item.val.map.items[i].value.val.string.buff, max_length);
-                     textbox_string[items_returned][ITEM_STRING_SIZE - 1] = '\0';//strncpy does not null terminate strings that exceed buffer size
+                     uint32_t null_term = ITEM_STRING_SIZE - 1;
+                     if (null_term > item.val.map.items[i].value.val.string.len)
+                        null_term = item.val.map.items[i].value.val.string.len;
+                     
+                     strncpy(textbox_string[items_returned], item.val.map.items[i].value.val.string.buff, null_term);
+                     textbox_string[items_returned][null_term] = '\0';//strncpy does not null terminate strings that exceed buffer size
                      UG_TextboxSetText(&fb_window, items_returned, textbox_string[items_returned]);
+                     
+                     if (items_returned == selected_entry % ITEM_LIST_ENTRYS)//TODO: make define for page number
+                     {
+                        draw_thumbnail(item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
+                        /*
+                        //update thumbnail
+                        int total_filename_length;
+                        
+                        total_filename_length =  strlen(assets_path);
+                        total_filename_length += strnlen(item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
+                        total_filename_length += strlen(".png");
+                        
+                        if (total_filename_length <= PATH_MAX_LENGTH)
+                        {
+                           //string is safe
+                           char thumbnail_path[PATH_MAX_LENGTH];
+                           strcpy(thumbnail_path,  assets_path);
+                           strncat(thumbnail_path, item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
+                           strcat(thumbnail_path,  ".png");
+                           get_file_thumbnail(thumbnail_path, thumbnail, thumbnail_width, thumbnail_height);
+                        }
+                        else
+                        {
+                           //TODO: return question mark image
+                        }
+                        */
+                     }
+                     
                      items_returned++;
                   }
                }
@@ -319,17 +389,28 @@ bool init_gui_db_tool()
    int new_textbox_y = 0;
    for (int entry = 0; entry < ITEM_LIST_ENTRYS; entry++)
    {
-      UG_TextboxCreate(&fb_window, &list_entrys[entry], entry, 0/*x start*/, new_textbox_y, TEXTBOX_PIXEL_WIDTH/*x end*/, new_textbox_y + TEXTBOX_PIXEL_HEIGHT - 1);
+      UG_TextboxCreate(&fb_window, &list_entrys[entry], entry, 0/*x start*/, new_textbox_y, TEXTBOX_PIXEL_WIDTH - 1/*x end*/, new_textbox_y + TEXTBOX_PIXEL_HEIGHT - 1);
       UG_TextboxSetAlignment(&fb_window, entry, ALIGN_CENTER);
       UG_TextboxSetText(&fb_window, entry, textbox_string[entry]);
       UG_TextboxShow(&fb_window, entry);
       new_textbox_y += TEXTBOX_PIXEL_HEIGHT;
    }
    
-   thumbnail_w = SCREEN_WIDTH / 4;
-   thumbnail_h = SCREEN_HEIGHT;
+   strcpy(assets_path, database_path);
    
-   thumbnail = malloc(thumbnail_w * thumbnail_h * sizeof(uint32_t));
+   /*
+   int asset_path_length = strlen(assets_path);
+   if (asset_path_length - 1 == "/" || asset_path_length - 1 == "\\")
+      assets_path[asset_path_length - 1] = '\0';
+   
+   for ()
+      */
+   strcpy(assets_path, "/INVAILDPATH");
+   
+   thumbnail_width  = SCREEN_WIDTH - TEXTBOX_PIXEL_WIDTH;
+   thumbnail_height = SCREEN_HEIGHT;
+   
+   thumbnail = malloc(thumbnail_width * thumbnail_height * sizeof(uint32_t));
    if (!thumbnail)
       return false;
    

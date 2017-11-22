@@ -22,9 +22,6 @@ static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 
 
-char database_path[PATH_MAX];
-char thumbnails_path[PATH_MAX];
-
 uint8_t  keyboard_keys[KEYBOARD_KEY_COUNT];
 uint8_t  keyboard_keys_last_frame[KEYBOARD_KEY_COUNT];
 uint32_t framebuffer[SCREEN_WIDTH * SCREEN_HEIGHT];

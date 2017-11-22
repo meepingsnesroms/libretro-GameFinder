@@ -1,6 +1,6 @@
 LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
 
-INCFLAGS := -I$(LIBRETRO_COMM_DIR)/include
+INCFLAGS := -I$(LIBRETRO_COMM_DIR)/include -DHAVE_RPNG -DHAVE_ZLIB
 
 ifneq (,$(findstring msvc2003,$(platform)))
 INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include/compat/msvc
@@ -9,11 +9,23 @@ endif
 SOURCES_C := $(CORE_DIR)/libretro.c \
 	$(CORE_DIR)/libretrodb/libretrodb_tool_gui.c \
    $(CORE_DIR)/libretrodb/bintree.c \
+   $(CORE_DIR)/libretrodb/imagetools.c \
    $(CORE_DIR)/libretrodb/libretrodb.c \
 	$(CORE_DIR)/libretrodb/query.c \
    $(CORE_DIR)/libretrodb/rmsgpack_dom.c \
    $(CORE_DIR)/libretrodb/rmsgpack.c \
    $(CORE_DIR)/ugui/ugui.c \
+   $(LIBRETRO_COMM_DIR)/encodings/encoding_crc32.c \
+   $(LIBRETRO_COMM_DIR)/encodings/encoding_utf.c \
+   $(LIBRETRO_COMM_DIR)/file/nbio/nbio_stdio.c \
+   $(LIBRETRO_COMM_DIR)/formats/image_texture.c \
+   $(LIBRETRO_COMM_DIR)/formats/image_transfer.c \
+   $(LIBRETRO_COMM_DIR)/formats/png/rpng.c \
+   $(LIBRETRO_COMM_DIR)/formats/png/rpng_encode.c \
    $(LIBRETRO_COMM_DIR)/streams/file_stream.c \
+   $(LIBRETRO_COMM_DIR)/streams/trans_stream.c \
+   $(LIBRETRO_COMM_DIR)/streams/trans_stream_pipe.c \
+   $(LIBRETRO_COMM_DIR)/streams/trans_stream_zlib.c \
+   $(LIBRETRO_COMM_DIR)/string/stdstring.c \
    $(LIBRETRO_COMM_DIR)/compat/compat_fnmatch.c \
    $(LIBRETRO_COMM_DIR)/compat/compat_strl.c
