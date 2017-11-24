@@ -19,8 +19,8 @@ void simple_float_scale(unsigned w, unsigned h, uint32_t* data, unsigned out_w, 
    {
       for(unsigned x = 0; x < out_w; x++)
       {
-         double scale_x = (float)x / (float)out_w * (float)w;
-         double scale_y = (float)y / (float)out_h * (float)h;
+         double scale_x = (double)x / (double)out_w * (double)w;
+         double scale_y = (double)y / (double)out_h * (double)h;
          unsigned pixel_scale_x = (int)scale_x;
          unsigned pixel_scale_y = (int)scale_y;
          
@@ -39,6 +39,9 @@ void get_file_thumbnail(const char* path, uint32_t* output_buffer, unsigned widt
 {
    struct texture_image thumbnail_file;
    bool worked;
+   
+   //true destroys send the red channel
+   thumbnail_file.supports_rgba = false;
    
    worked = image_texture_load(&thumbnail_file, path);
    

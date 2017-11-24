@@ -25,6 +25,7 @@
 
 #include <string/stdstring.h>
 #include <retro_miscellaneous.h>
+#include <file/file_path.h>
 
 #include "libretrodb.h"
 #include "rmsgpack_dom.h"
@@ -85,6 +86,7 @@ int        list_index_action[ITEM_LIST_ENTRYS];
 int        list_index_action_param[ITEM_LIST_ENTRYS];
 int64_t    list_length;
 int64_t    selected_entry;
+char       selected_entry_full_name[PATH_MAX_LENGTH];
 int64_t    (*list_handler)(int64_t index);
 
 bool       typing_mode;
@@ -121,20 +123,7 @@ void draw_thumbnail(char* game_name, unsigned name_length)
       //TODO: return question mark image
    }
    
-   /*
-   for(unsigned y = 0; y < thumbnail_height; y++)
-   {
-      for(unsigned x = 0; x < thumbnail_width; x++)
-      {
-         framebuffer[SCREEN_WIDTH * y + TEXTBOX_PIXEL_WIDTH + x] = thumbnail[thumbnail_width * y + x];
-      }
-   }
-   */
-   
-#if 1
    copy_rect(thumbnail_width, thumbnail_height, thumbnail, 0/*fb1 start x*/, 0/*fb1 start y*/, thumbnail_width, thumbnail_height, SCREEN_WIDTH, SCREEN_HEIGHT, framebuffer, TEXTBOX_PIXEL_WIDTH + 1, 0/*fb2 start y*/);
-#endif
-   
 }
 
 void window_callback(UG_MESSAGE* message)
@@ -257,28 +246,6 @@ int64_t list_all(int64_t index)
                      if (items_returned == selected_entry % ITEM_LIST_ENTRYS)//TODO: make define for page number
                      {
                         draw_thumbnail(item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
-                        /*
-                        //update thumbnail
-                        int total_filename_length;
-                        
-                        total_filename_length =  strlen(assets_path);
-                        total_filename_length += strnlen(item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
-                        total_filename_length += strlen(".png");
-                        
-                        if (total_filename_length <= PATH_MAX_LENGTH)
-                        {
-                           //string is safe
-                           char thumbnail_path[PATH_MAX_LENGTH];
-                           strcpy(thumbnail_path,  assets_path);
-                           strncat(thumbnail_path, item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
-                           strcat(thumbnail_path,  ".png");
-                           get_file_thumbnail(thumbnail_path, thumbnail, thumbnail_width, thumbnail_height);
-                        }
-                        else
-                        {
-                           //TODO: return question mark image
-                        }
-                        */
                      }
                      
                      items_returned++;
@@ -396,16 +363,22 @@ bool init_gui_db_tool()
       new_textbox_y += TEXTBOX_PIXEL_HEIGHT;
    }
    
-   strcpy(assets_path, database_path);
    
-   /*
-   int asset_path_length = strlen(assets_path);
-   if (asset_path_length - 1 == "/" || asset_path_length - 1 == "\\")
-      assets_path[asset_path_length - 1] = '\0';
+   //resolve assets directory
+   char database_name[PATH_MAX_LENGTH];
+   strcpy(database_name, database_path);
+   path_remove_extension(database_name);
+   char* asset_dir_name = find_last_slash(database_name);
    
-   for ()
-      */
-   strcpy(assets_path, "/INVAILDPATH");
+   fill_pathname_basedir(assets_path, database_path, PATH_MAX_LENGTH);
+   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
+   strncat(assets_path, "assets", PATH_MAX_LENGTH - strlen(assets_path));
+   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
+   strncat(assets_path, asset_dir_name, PATH_MAX_LENGTH - strlen(assets_path));
+   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
+   strncat(assets_path, "Named_Boxarts", PATH_MAX_LENGTH - strlen(assets_path));
+   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
+   
    
    thumbnail_width  = SCREEN_WIDTH - TEXTBOX_PIXEL_WIDTH;
    thumbnail_height = SCREEN_HEIGHT;
@@ -518,7 +491,7 @@ static void list_mode_frame()
    page  = selected_entry / ITEM_LIST_ENTRYS;
    index = selected_entry % ITEM_LIST_ENTRYS;
    
-   if (page != last_page && list_handler)
+   if (page != last_page || index != last_index && list_handler)
       list_length = list_handler(page * ITEM_LIST_ENTRYS);
    
    if (keyboard_keys[RETROK_RETURN] && !keyboard_keys_last_frame[RETROK_RETURN])
@@ -540,6 +513,8 @@ static void list_mode_frame()
          case SIMPLE_QUERY:
             break;
          case SHOW_GAME:
+            break;
+         case SHOW_GAME_PROPERTY:
             break;
       }
    }
