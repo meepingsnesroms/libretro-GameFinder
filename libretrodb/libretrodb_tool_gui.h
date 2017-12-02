@@ -7,7 +7,8 @@
 
 enum ui_window
 {
-   MAIN_WINDOW = 0,
+   NO_ACTION = 0,
+   MAIN_MENU,
    LIST_ALL_GAMES,
    SIMPLE_QUERY,
    TEXT_QUERY,

@@ -36,7 +36,6 @@
 #include "../ugui/ugui.h"
 
 
-
 #define FONT_WIDTH 8
 #define FONT_HEIGHT 8
 #define FONT_SPACING 0
@@ -56,30 +55,32 @@
 #define ITEM_LIST_ENTRYS (SCREEN_HEIGHT / TEXTBOX_PIXEL_HEIGHT - 1)
 #define ITEM_STRING_SIZE (TEXTBOX_PIXEL_WIDTH / (FONT_WIDTH + FONT_SPACING))
 
-//#define PAGE_NUMBER (selected_entry / ITEM_LIST_ENTRYS)
-//#define PAGE_INDEX  (selected_entry % ITEM_LIST_ENTRYS)
 
-
+//paths
 char database_path[PATH_MAX_LENGTH];
 char assets_path[PATH_MAX_LENGTH];
 
+//db access
 int rv;
 libretrodb_t *db;
 libretrodb_cursor_t *cur;
 libretrodb_query_t *q;
 struct rmsgpack_dom_value item;
-const char *command, *path, *query_exp, *error;
+const char *command, *path, *error;
 bool last_db_call_success;
 
+//screen
 uint32_t   backup_fb[SCREEN_WIDTH * SCREEN_HEIGHT];
 UG_GUI     fb_gui;
 UG_WINDOW  fb_window;
 UG_OBJECT  fb_objects[MAX_OBJECTS];
 
+//thumbnail
 uint32_t*  thumbnail;
 int        thumbnail_width;
 int        thumbnail_height;
 
+//list items
 char       textbox_string[ITEM_LIST_ENTRYS][ITEM_STRING_SIZE];
 UG_TEXTBOX list_entrys[ITEM_LIST_ENTRYS];
 int        list_index_action[ITEM_LIST_ENTRYS];
@@ -87,137 +88,91 @@ int        list_index_action_param[ITEM_LIST_ENTRYS];
 int64_t    list_length;
 int64_t    selected_entry;
 char       selected_entry_full_name[PATH_MAX_LENGTH];
+int        back_button_action;
 int64_t    (*list_handler)(int64_t index);
 
+//keyboard
 bool       typing_mode;
 char       console_message[CONSOLE_MESSAGE_SIZE];
 char       kbd_str[KEYBOARD_STRING_SIZE];
 int        kbd_str_index;
 void       (*process_kbd_string)();
 
-void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
+//query
+bool       use_query;
+char       game_list_query[KEYBOARD_STRING_SIZE];
+
+
+static void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
 {
    framebuffer[y * SCREEN_WIDTH + x] = color;
 }
 
-void draw_thumbnail(char* game_name, unsigned name_length)
+static void make_path_from_name(char* path, char* game_name)
 {
    int total_filename_length;
    
    total_filename_length =  strlen(assets_path);
-   total_filename_length += strnlen(game_name, name_length);
+   total_filename_length += strlen(game_name);
    total_filename_length += strlen(".png");
    
    if (total_filename_length <= PATH_MAX_LENGTH)
    {
-      //string is safe
-      char thumbnail_path[PATH_MAX_LENGTH];
-      strcpy(thumbnail_path,  assets_path);
-      strncat(thumbnail_path, game_name, name_length);
-      strcat(thumbnail_path,  ".png");
-      printf("Thumbnail path:\"%s\"\n", thumbnail_path);
-      get_file_thumbnail(thumbnail_path, thumbnail, thumbnail_width, thumbnail_height);
+      strcpy(path, assets_path);
+      strcat(path, game_name);
+      strcat(path, ".png");
    }
    else
    {
-      //TODO: return question mark image
+      path[0] = '\0';
    }
-   
-   copy_rect(thumbnail_width, thumbnail_height, thumbnail, 0/*fb1 start x*/, 0/*fb1 start y*/, thumbnail_width, thumbnail_height, SCREEN_WIDTH, SCREEN_HEIGHT, framebuffer, TEXTBOX_PIXEL_WIDTH + 1, 0/*fb2 start y*/);
 }
 
-void window_callback(UG_MESSAGE* message)
+static void draw_thumbnail(char* path)
+{
+   get_file_thumbnail(path, thumbnail, thumbnail_width, thumbnail_height);
+   copy_rect(thumbnail_width, thumbnail_height, thumbnail, 0/*fb1 start x*/, 0/*fb1 start y*/, thumbnail_width, thumbnail_height, SCREEN_WIDTH, SCREEN_HEIGHT, framebuffer, TEXTBOX_PIXEL_WIDTH, 0/*fb2 start y*/);
+}
+
+static void window_callback(UG_MESSAGE* message)
 {
    //do nothing
 }
 
-#if 0
-int64_t get_names(char* query_exp, int64_t index)
-{
-   last_db_call_success = true;
-   error = NULL;
-   q = libretrodb_query_compile(db, query_exp, strlen(query_exp), &error);
-   
-   if (error)
-   {
-      libretro_log_printf("%s\n", error);
-      last_db_call_success = false;
-      return;
-   }
-   
-   if ((rv = libretrodb_cursor_open(db, cur, q)) != 0)
-   {
-      libretro_log_printf("Could not open cursor: %s\n", strerror(-rv));
-      last_db_call_success = false;
-      return;
-   }
-   
-   while (libretrodb_cursor_read_item(cur, &item) == 0)
-   {
-      if (item.type == RDT_MAP) //should always be true, but if false the program would segfault
-      {
-         unsigned i;
-         for (i = 0; i < item.val.map.len; i++)
-         {
-            if (item.val.map.items[i].key.type == RDT_STRING && (strncmp(item.val.map.items[i].key.val.string.buff, "name", item.val.map.items[i].key.val.string.len) == 0))
-            {
-               rmsgpack_dom_value_print(&item.val.map.items[i].value);
-               printf("\n");
-            }
-         }
-      }
-      
-      rmsgpack_dom_value_free(&item);
-   }
-   
-   libretrodb_cursor_close(cur);
-}
-
-int64_t find(char* query_exp, int64_t index)
-{
-   last_db_call_success = true;
-   error = NULL;
-   q = libretrodb_query_compile(db, query_exp, strlen(query_exp), &error);
-   
-   if (error)
-   {
-      libretro_log_printf("%s\n", error);
-      last_db_call_success = false;
-      return;
-   }
-   
-   if ((rv = libretrodb_cursor_open(db, cur, q)) != 0)
-   {
-      libretro_log_printf("Could not open cursor: %s\n", strerror(-rv));
-      last_db_call_success = false;
-      return;
-   }
-   
-   while (libretrodb_cursor_read_item(cur, &item) == 0)
-   {
-      /*
-      rmsgpack_dom_value_print(&item);
-      printf("\n");
-      rmsgpack_dom_value_free(&item);
-      */
-   }
-   
-   libretrodb_cursor_close(cur);
-}
-#endif
-
-int64_t list_all(int64_t index)
+static int64_t list_games(int64_t index)
 {
    int64_t total_items = 0;
    int64_t items_returned = 0;
    
    last_db_call_success = true;
    
-   if ((rv = libretrodb_cursor_open(db, cur, NULL)) != 0)
+   if (use_query)
    {
-      libretro_log_printf("Could not open cursor: %s\n", strerror(-rv));
-      last_db_call_success = false;
-      return 0;
+      error = NULL;
+      q = libretrodb_query_compile(db, game_list_query, strlen(game_list_query), &error);
+      
+      if (error)
+      {
+         libretro_log_printf("%s\n", error);
+         last_db_call_success = false;
+         return 0;
+      }
+      
+      if ((rv = libretrodb_cursor_open(db, cur, q)) != 0)
+      {
+         libretro_log_printf("Could not open cursor: %s\n", strerror(-rv));
+         last_db_call_success = false;
+         return 0;
+      }
+   }
+   else
+   {
+      if ((rv = libretrodb_cursor_open(db, cur, NULL)) != 0)
+      {
+         libretro_log_printf("Could not open cursor: %s\n", strerror(-rv));
+         last_db_call_success = false;
+         return 0;
+      }
    }
    
    while (libretrodb_cursor_read_item(cur, &item) == 0)
@@ -245,7 +200,21 @@ int64_t list_all(int64_t index)
                      
                      if (items_returned == selected_entry % ITEM_LIST_ENTRYS)//TODO: make define for page number
                      {
-                        draw_thumbnail(item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
+                        char thumbnail_path[PATH_MAX_LENGTH];
+                        
+                        if (item.val.map.items[i].value.val.string.len < PATH_MAX_LENGTH)
+                        {
+                           strncpy(selected_entry_full_name, item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
+                           selected_entry_full_name[item.val.map.items[i].value.val.string.len] = '\0';
+                        }
+                        else
+                        {
+                           //this variable is only good if it can store the full name, so theres no point in storing a partial name
+                           selected_entry_full_name[0] = '\0';
+                        }
+                        
+                        make_path_from_name(thumbnail_path, selected_entry_full_name);
+                        draw_thumbnail(thumbnail_path);
                      }
                      
                      items_returned++;
@@ -269,16 +238,18 @@ int64_t list_all(int64_t index)
       items_returned++;
    }
    
-   libretrodb_cursor_close(cur);
+   libretrodb_cursor_close(cur);//cursor_close also frees the query if present
    return total_items;
 }
 
-void make_query_expression()
+
+
+static void make_query_expression()
 {
    
 }
 
-void set_main_window()
+static void set_main_window()
 {
    if (typing_mode)
    {
@@ -292,6 +263,7 @@ void set_main_window()
    list_index_action[0] = LIST_ALL_GAMES;
    list_index_action[1] = SIMPLE_QUERY;
    list_index_action[2] = TEXT_QUERY;
+   back_button_action   = NO_ACTION;
    
    //Needed to refresh the textbox, even though it is just setting the same string
    UG_TextboxSetText(&fb_window, 0, textbox_string[0]);
@@ -308,11 +280,21 @@ void set_main_window()
    UG_Update();
 }
 
-void set_text_query()
+static void run_text_query()
+{
+   back_button_action = MAIN_MENU;
+   use_query = true;
+   strcpy(game_list_query, kbd_str);
+   list_handler = list_games;
+   list_games(0);
+}
+
+static void set_text_query()
 {
    typing_mode = true;
    memset(kbd_str, 0, KEYBOARD_STRING_SIZE);
    kbd_str_index = 0;
+   process_kbd_string = run_text_query;
    
    memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
    
@@ -369,6 +351,7 @@ bool init_gui_db_tool()
    strcpy(database_name, database_path);
    path_remove_extension(database_name);
    char* asset_dir_name = find_last_slash(database_name);
+   asset_dir_name++;//dont count the found slash
    
    fill_pathname_basedir(assets_path, database_path, PATH_MAX_LENGTH);
    fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
@@ -390,6 +373,7 @@ bool init_gui_db_tool()
    //TODO: add thumbnail images
    
    typing_mode = false;
+   selected_entry_full_name[0] = '\0';
    
    set_main_window();
    UG_WindowShow(&fb_window);
@@ -410,6 +394,35 @@ void close_gui_db_tool()
       libretrodb_cursor_free(cur);
 }
 
+static void run_action(int action)
+{
+   libretro_log_printf("GUI Action:%d\n", action);
+   
+   switch (action)
+   {
+      case LIST_ALL_GAMES:
+         back_button_action = MAIN_MENU;
+         use_query = false;
+         list_handler = list_games;
+         selected_entry = 0;
+         for (int i = 0; i < ITEM_LIST_ENTRYS; i++)
+            list_index_action[i] = SHOW_GAME;
+         list_length = list_games(0);
+         break;
+      case TEXT_QUERY:
+         set_text_query();
+         break;
+      case SIMPLE_QUERY:
+         break;
+      case SHOW_GAME:
+         break;
+      case SHOW_GAME_PROPERTY:
+         break;
+      case NO_ACTION:
+         break;
+   }
+}
+
 static void typing_mode_frame()
 {
    int kbd_key = 0;
@@ -418,6 +431,7 @@ static void typing_mode_frame()
    {
       if (keyboard_keys[i] && !keyboard_keys_last_frame[i])
       {
+         libretro_log_printf("Key %d pressed\n", i);
          kbd_key = i;
       }
    }
@@ -426,6 +440,64 @@ static void typing_mode_frame()
    {
       if (kbd_str_index < KEYBOARD_STRING_SIZE - 1/*null terminator*/)
       {
+         if (keyboard_keys[RETROK_LSHIFT] || keyboard_keys[RETROK_RSHIFT])
+         {
+            if (kbd_key >= 'a' && kbd_key <= 'z')
+            {
+               //make uppercase letter
+               kbd_key -= 32;
+            }
+            else if (kbd_key >= '[' && kbd_key <= ']')
+            {
+               //swap special chars
+               kbd_key += 32;
+            }
+            else if (kbd_key == ';')
+            {
+               kbd_key = ':';
+            }
+            else if (kbd_key == '1')
+            {
+               kbd_key = '!';
+            }
+            else if (kbd_key == '2')
+            {
+               kbd_key = '@';
+            }
+            else if (kbd_key == '3')
+            {
+               kbd_key = '#';
+            }
+            else if (kbd_key == '4')
+            {
+               kbd_key = '$';
+            }
+            else if (kbd_key == '5')
+            {
+               kbd_key = '%';
+            }
+            else if (kbd_key == '6')
+            {
+               kbd_key = '^';
+            }
+            else if (kbd_key == '7')
+            {
+               kbd_key = '&';
+            }
+            else if (kbd_key == '8')
+            {
+               kbd_key = '*';
+            }
+            else if (kbd_key == '9')
+            {
+               kbd_key = '(';
+            }
+            else if (kbd_key == '0')
+            {
+               kbd_key = ')';
+            }
+         }
+         
          kbd_str[kbd_str_index] = kbd_key;
          kbd_str[kbd_str_index + 1] = '\0';
          kbd_str_index++;
@@ -496,32 +568,14 @@ static void list_mode_frame()
    
    if (keyboard_keys[RETROK_RETURN] && !keyboard_keys_last_frame[RETROK_RETURN])
    {
-      libretro_log_printf("List Index Action:%d\n", list_index_action[index]);
       //select
-      switch (list_index_action[index])
-      {
-         case LIST_ALL_GAMES:
-            list_handler = list_all;
-            selected_entry = 0;
-            for (int i = 0; i < ITEM_LIST_ENTRYS; i++)
-               list_index_action[i] = SHOW_GAME;
-            list_length = list_all(0);
-            break;
-         case TEXT_QUERY:
-            set_text_query();
-            break;
-         case SIMPLE_QUERY:
-            break;
-         case SHOW_GAME:
-            break;
-         case SHOW_GAME_PROPERTY:
-            break;
-      }
+      run_action(list_index_action[index]);
    }
    
    if (keyboard_keys[RETROK_BACKSPACE] && !keyboard_keys_last_frame[RETROK_BACKSPACE])
    {
       //go back
+      run_action(back_button_action);
    }
    
    if (keyboard_keys[RETROK_TAB] && !keyboard_keys_last_frame[RETROK_TAB])
@@ -547,7 +601,6 @@ static void list_mode_frame()
 
 void libretro_db_gui_render()
 {
-   
    if (typing_mode)
    {
       typing_mode_frame();

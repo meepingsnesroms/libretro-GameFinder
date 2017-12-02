@@ -143,34 +143,9 @@ void update_input()
    
    memcpy(keyboard_keys_last_frame, keyboard_keys, KEYBOARD_KEY_COUNT);
    
-   //numbers
-   for (i = RETROK_0; i <= RETROK_9; i++)
+   //get all keys
+   for (i = 0; i < KEYBOARD_KEY_COUNT; i++)
       keyboard_keys[i] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, i) ? 1 : 0;
-   
-   //letters
-   for (i = RETROK_a; i <= RETROK_z; i++)
-      keyboard_keys[i] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, i) ? 1 : 0;
-   
-   //arrows
-   keyboard_keys[RETROK_UP] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_UP) ? 1 : 0;
-   keyboard_keys[RETROK_DOWN] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_DOWN) ? 1 : 0;
-   keyboard_keys[RETROK_LEFT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LEFT) ? 1 : 0;
-   keyboard_keys[RETROK_RIGHT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RIGHT) ? 1 : 0;
-   
-   //actions
-   keyboard_keys[RETROK_RETURN] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RETURN) ? 1 : 0;
-   keyboard_keys[RETROK_DELETE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_DELETE) ? 1 : 0;
-   
-   //modifiers
-   keyboard_keys[RETROK_LSHIFT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LSHIFT) ? 1 : 0;
-   keyboard_keys[RETROK_RSHIFT] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RSHIFT) ? 1 : 0;
-   
-   //symbols
-   keyboard_keys[RETROK_LEFTBRACKET] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_LEFTBRACKET) ? 1 : 0;
-   keyboard_keys[RETROK_RIGHTBRACKET] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_RIGHTBRACKET) ? 1 : 0;
-   keyboard_keys[RETROK_COLON] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_COLON) ? 1 : 0;
-   keyboard_keys[RETROK_QUOTE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_QUOTE) ? 1 : 0;
-   keyboard_keys[RETROK_UNDERSCORE] = input_state_cb(0, RETRO_DEVICE_KEYBOARD, 0, RETROK_UNDERSCORE) ? 1 : 0;
 }
 
 void retro_run(void)

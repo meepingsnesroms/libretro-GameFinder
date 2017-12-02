@@ -40,7 +40,6 @@ void get_file_thumbnail(const char* path, uint32_t* output_buffer, unsigned widt
    struct texture_image thumbnail_file;
    bool worked;
    
-   //true destroys send the red channel
    thumbnail_file.supports_rgba = false;
    
    worked = image_texture_load(&thumbnail_file, path);
