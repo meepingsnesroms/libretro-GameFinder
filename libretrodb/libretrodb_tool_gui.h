@@ -21,28 +21,21 @@ enum ui_window
    LAST_WINDOW = INT_MAX
 };
 
-enum propertys
+enum query_propertys
 {
-   NAME = 0,
-   RELEASE_YEAR,
-   RELEASE_MONTH,
+   QUERY_START = 0;
+   NAME,
+   RELEASE_START_YEAR,
+   RELEASE_END_YEAR,
+   RELEASE_START_MONTH,
+   RELEASE_END_MONTH,
    DEVELOPER,
    GENRE,
    
+   TAGS,
    
-   LAST_PROPERTY = INT_MAX
+   QUERY_END
 };
-
-typedef struct
-{
-   int  game_year[2];//start<->end years, leave the same to search one year
-   int  game_month[2];////start<->end months, leave the same to search one month
-   char name[200];
-   char genre[100];
-   char developer[100];
-   char platforms[100];
-   //char tags[500];//no tags yet
-}simple_query_expression;//set propertys to -1 to ignore, for strings set first letter to NULL terminator '\0'
 
 extern char database_path[PATH_MAX_LENGTH];
 

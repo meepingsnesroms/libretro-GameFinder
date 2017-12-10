@@ -102,6 +102,19 @@ void       (*process_kbd_string)();
 bool       use_query;
 char       game_list_query[KEYBOARD_STRING_SIZE];
 
+//simple query
+//also uses query fields above
+int        query_section;//what property in the query is being entered
+char       query_game_name[1000];
+int        query_start_year;
+int        query_end_year;
+int        query_start_month;
+int        query_end_month;
+char       query_genre[100];
+char       query_developer[100];
+char       query_tags[1000]
+char       query_platform[100];//used if you use a merged list with games for all platforms
+
 
 static void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
 {
@@ -292,7 +305,8 @@ static void run_text_query()
 static void set_text_query()
 {
    typing_mode = true;
-   memset(kbd_str, 0, KEYBOARD_STRING_SIZE);
+   //memset(kbd_str, 0, KEYBOARD_STRING_SIZE);
+   kbd_str[0] = '\0';
    kbd_str_index = 0;
    process_kbd_string = run_text_query;
    
@@ -303,6 +317,59 @@ static void set_text_query()
    UG_ConsoleSetArea(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
    UG_ConsoleClear();
    UG_ConsolePutString(console_message);
+}
+
+static void process_simple_query()
+{
+   //this function is called after each question and when the query is finished
+   switch (query_section)
+   {
+      case QUERY_START:
+         typing_mode = true;
+         kbd_str[0] = '\0';
+         kbd_str_index = 0;
+         
+         strcpy(console_message, "Enter full or partial game name, value is case sensitive:\n");
+         
+         query_section++;
+         break;
+      case NAME:
+         if (strlen(kbd_str) < 1000)
+         {
+            strcpy(query_name, kbd_str);
+         }
+         else
+         {
+            query_name[0] = '\0';
+         }
+         
+         //stay in typing mode for the next section
+         typing_mode = true;
+         kbd_str[0] = '\0';
+         kbd_str_index = 0;
+         
+         query_section++;
+         break;
+      case QUERY_END:
+         //build text query from simple query and run it
+         
+         
+         
+         back_button_action = MAIN_MENU;
+         use_query = true;
+         strcpy(game_list_query, kbd_str);
+         list_handler = list_games;
+         list_games(0);
+         break;
+   }
+}
+
+static void set_simple_query()
+{
+   process_kbd_string = process_simple_query;
+   query_section = QUERY_START;
+   
+   process_simple_query();
 }
 
 bool init_gui_db_tool()
@@ -363,14 +430,15 @@ bool init_gui_db_tool()
    fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
    
    
+   //thumbnails
    thumbnail_width  = SCREEN_WIDTH - TEXTBOX_PIXEL_WIDTH;
    thumbnail_height = SCREEN_HEIGHT;
    
    thumbnail = malloc(thumbnail_width * thumbnail_height * sizeof(uint32_t));
    if (!thumbnail)
+   {
       return false;
-   
-   //TODO: add thumbnail images
+   }
    
    typing_mode = false;
    selected_entry_full_name[0] = '\0';
@@ -406,13 +474,16 @@ static void run_action(int action)
          list_handler = list_games;
          selected_entry = 0;
          for (int i = 0; i < ITEM_LIST_ENTRYS; i++)
+         {
             list_index_action[i] = SHOW_GAME;
+         }
          list_length = list_games(0);
          break;
       case TEXT_QUERY:
          set_text_query();
          break;
       case SIMPLE_QUERY:
+         set_simple_query();
          break;
       case SHOW_GAME:
          break;
@@ -510,12 +581,15 @@ static void typing_mode_frame()
    else if (kbd_key == RETROK_RETURN)
    {
       //send string
-      typing_mode = false;
-      
-      //restore gui mode
-      memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
+      typing_mode = false;//typing_mode must be disabled before process_kbd_string() to give the function the option to hold the gui in typing mode
       
       process_kbd_string();
+      
+      //restore gui mode
+      if (!typing_mode)
+      {
+         memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
+      }
    }
    else if (kbd_key == RETROK_BACKSPACE/*delete*/)
    {
@@ -540,31 +614,51 @@ static void list_mode_frame()
    
    if (keyboard_keys[RETROK_UP] && !keyboard_keys_last_frame[RETROK_UP])
    {
-      if(selected_entry - 1 >= 0)selected_entry--;
+      if(selected_entry - 1 >= 0)
+      {
+         selected_entry--;
+      }
    }
    
    if (keyboard_keys[RETROK_DOWN] && !keyboard_keys_last_frame[RETROK_DOWN])
    {
-      if(selected_entry + 1 < list_length)selected_entry++;
+      if(selected_entry + 1 < list_length)
+      {
+         selected_entry++;
+      }
    }
    
    if (keyboard_keys[RETROK_LEFT] && !keyboard_keys_last_frame[RETROK_LEFT] && list_length > ITEM_LIST_ENTRYS)
    {
-      if(selected_entry - ITEM_LIST_ENTRYS >= 0)selected_entry -= ITEM_LIST_ENTRYS;//flip the page
-      else selected_entry = 0;
+      if(selected_entry - ITEM_LIST_ENTRYS >= 0)
+      {
+         selected_entry -= ITEM_LIST_ENTRYS;//flip the page
+      }
+      else
+      {
+         selected_entry = 0;
+      }
    }
    
    if (keyboard_keys[RETROK_RIGHT] && !keyboard_keys_last_frame[RETROK_RIGHT] && list_length > ITEM_LIST_ENTRYS)
    {
-      if(selected_entry + ITEM_LIST_ENTRYS < list_length)selected_entry += ITEM_LIST_ENTRYS;//flip the page
-      else selected_entry = list_length - 1;
+      if(selected_entry + ITEM_LIST_ENTRYS < list_length)
+      {
+         selected_entry += ITEM_LIST_ENTRYS;//flip the page
+      }
+      else
+      {
+         selected_entry = list_length - 1;
+      }
    }
    
    page  = selected_entry / ITEM_LIST_ENTRYS;
    index = selected_entry % ITEM_LIST_ENTRYS;
    
    if (page != last_page || index != last_index && list_handler)
+   {
       list_length = list_handler(page * ITEM_LIST_ENTRYS);
+   }
    
    if (keyboard_keys[RETROK_RETURN] && !keyboard_keys_last_frame[RETROK_RETURN])
    {
