@@ -23,7 +23,7 @@ enum ui_window
 
 enum query_propertys
 {
-   QUERY_START = 0;
+   QUERY_START = 0,
    NAME,
    RELEASE_START_YEAR,
    RELEASE_END_YEAR,

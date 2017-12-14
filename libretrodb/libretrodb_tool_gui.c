@@ -36,13 +36,14 @@
 #include "../ugui/ugui.h"
 
 
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 8
+#define FONT_WIDTH   8
+#define FONT_HEIGHT  8
 #define FONT_SPACING 0
 
-#define MAX_OBJECTS 100
+#define MAX_OBJECTS          100
 #define CONSOLE_MESSAGE_SIZE 200
 #define KEYBOARD_STRING_SIZE 10000
+#define QUERY_STRING_SIZE    KEYBOARD_STRING_SIZE
 
 #define TEXTBOX_PIXEL_MARGIN 1 //add 1 pixel border around text
 #define TEXTBOX_PIXEL_WIDTH  (SCREEN_WIDTH / 4 * 3) //3/4 of the screen
@@ -100,19 +101,19 @@ void       (*process_kbd_string)();
 
 //query
 bool       use_query;
-char       game_list_query[KEYBOARD_STRING_SIZE];
+char       game_list_query[QUERY_STRING_SIZE];
 
 //simple query
 //also uses query fields above
 int        query_section;//what property in the query is being entered
-char       query_game_name[1000];
+char       query_name[1000];
 int        query_start_year;
 int        query_end_year;
 int        query_start_month;
 int        query_end_month;
 char       query_genre[100];
 char       query_developer[100];
-char       query_tags[1000]
+char       query_tags[1000];
 char       query_platform[100];//used if you use a merged list with games for all platforms
 
 
@@ -203,13 +204,14 @@ static int64_t list_games(int64_t index)
                else {
                   if (items_returned < ITEM_LIST_ENTRYS)
                   {
-                     uint32_t null_term = ITEM_STRING_SIZE - 1;
+                     int null_term = ITEM_STRING_SIZE - 1;
                      if (null_term > item.val.map.items[i].value.val.string.len)
                         null_term = item.val.map.items[i].value.val.string.len;
                      
                      strncpy(textbox_string[items_returned], item.val.map.items[i].value.val.string.buff, null_term);
                      textbox_string[items_returned][null_term] = '\0';//strncpy does not null terminate strings that exceed buffer size
                      UG_TextboxSetText(&fb_window, items_returned, textbox_string[items_returned]);
+                     list_index_action[items_returned] = SHOW_GAME;
                      
                      if (items_returned == selected_entry % ITEM_LIST_ENTRYS)//TODO: make define for page number
                      {
@@ -248,6 +250,7 @@ static int64_t list_games(int64_t index)
       //fill end of list with empty strings
       textbox_string[items_returned][0] = '\0';
       UG_TextboxSetText(&fb_window, items_returned, textbox_string[items_returned]);
+      list_index_action[items_returned] = NO_ACTION;
       items_returned++;
    }
    
@@ -255,21 +258,8 @@ static int64_t list_games(int64_t index)
    return total_items;
 }
 
-
-
-static void make_query_expression()
-{
-   
-}
-
 static void set_main_window()
 {
-   if (typing_mode)
-   {
-      memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
-      typing_mode = false;
-   }
-   
    strcpy(textbox_string[0], "List all games");
    strcpy(textbox_string[1], "Simple Query");
    strcpy(textbox_string[2], "Text Query");
@@ -295,28 +285,67 @@ static void set_main_window()
 
 static void run_text_query()
 {
+   memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));//restore list mode framebuffer
    back_button_action = MAIN_MENU;
    use_query = true;
    strcpy(game_list_query, kbd_str);
    list_handler = list_games;
+   selected_entry = 0;//put cursor at top of the list
    list_games(0);
 }
 
 static void set_text_query()
 {
    typing_mode = true;
-   //memset(kbd_str, 0, KEYBOARD_STRING_SIZE);
    kbd_str[0] = '\0';
    kbd_str_index = 0;
    process_kbd_string = run_text_query;
    
-   memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
-   
    strcpy(console_message, "Enter your text query:\n");
    
+   memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
    UG_ConsoleSetArea(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
    UG_ConsoleClear();
    UG_ConsolePutString(console_message);
+}
+
+static void build_query_from_params()
+{
+   int full_query_length = 0;
+   bool had_former_entry = false;//used to place commas after entrys
+   
+   full_query_length += strlen("{");
+   if (query_name[0] != '\0')
+   {
+      full_query_length += strlen("'name':glob('*");
+      full_query_length += strlen(query_name);
+      full_query_length += strlen("*')");
+      had_former_entry = true;
+   }
+   
+   //TODO: add other query types
+   
+   full_query_length += strlen("}");
+   
+   
+   if (full_query_length < QUERY_STRING_SIZE)
+   {
+      //query length is known to be safe, now build query
+      had_former_entry = false;
+      game_list_query[0] = '\0';
+      strcat(game_list_query, "{");
+      if (query_name[0] != '\0')
+      {
+         strcat(game_list_query, "'name':glob('*");
+         strcat(game_list_query, query_name);
+         strcat(game_list_query, "*')");
+         had_former_entry = true;
+      }
+      
+      //TODO: add other query types
+      
+      strcat(game_list_query, "}");
+   }
 }
 
 static void process_simple_query()
@@ -330,6 +359,12 @@ static void process_simple_query()
          kbd_str_index = 0;
          
          strcpy(console_message, "Enter full or partial game name, value is case sensitive:\n");
+         
+         //render first frame
+         memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
+         UG_ConsoleSetArea(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+         UG_ConsoleClear();
+         UG_ConsolePutString(console_message);
          
          query_section++;
          break;
@@ -350,15 +385,15 @@ static void process_simple_query()
          
          query_section++;
          break;
+      default:
       case QUERY_END:
          //build text query from simple query and run it
-         
-         
-         
+         memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));//restore list mode framebuffer
          back_button_action = MAIN_MENU;
          use_query = true;
-         strcpy(game_list_query, kbd_str);
+         build_query_from_params();
          list_handler = list_games;
+         selected_entry = 0;//put cursor at top of the list
          list_games(0);
          break;
    }
@@ -472,11 +507,7 @@ static void run_action(int action)
          back_button_action = MAIN_MENU;
          use_query = false;
          list_handler = list_games;
-         selected_entry = 0;
-         for (int i = 0; i < ITEM_LIST_ENTRYS; i++)
-         {
-            list_index_action[i] = SHOW_GAME;
-         }
+         selected_entry = 0;//put cursor at top of the list
          list_length = list_games(0);
          break;
       case TEXT_QUERY:
