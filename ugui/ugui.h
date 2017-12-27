@@ -17,7 +17,10 @@
 #ifndef __UGUI_H
 #define __UGUI_H
 
-//#include "system.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+   
 #include "ugui_config.h"
 
 
@@ -1048,6 +1051,8 @@ UG_RESULT UG_ImageShow( UG_WINDOW* wnd, UG_U8 id );
 UG_RESULT UG_ImageHide( UG_WINDOW* wnd, UG_U8 id );
 UG_RESULT UG_ImageSetBMP( UG_WINDOW* wnd, UG_U8 id, const UG_BMP* bmp );
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif

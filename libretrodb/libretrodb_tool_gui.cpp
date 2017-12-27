@@ -163,7 +163,7 @@ static int64_t list_games(int64_t index)
    if (use_query)
    {
       error = NULL;
-      q = libretrodb_query_compile(db, game_list_query, strlen(game_list_query), &error);
+      q = (libretrodb_query_t*)libretrodb_query_compile(db, game_list_query, strlen(game_list_query), &error);
       
       if (error)
       {
@@ -379,7 +379,7 @@ static void process_simple_query()
          }
          
          //stay in typing mode for the next section
-         typing_mode = true;
+         //typing_mode = true;
          kbd_str[0] = '\0';
          kbd_str_index = 0;
          
@@ -469,7 +469,7 @@ bool init_gui_db_tool()
    thumbnail_width  = SCREEN_WIDTH - TEXTBOX_PIXEL_WIDTH;
    thumbnail_height = SCREEN_HEIGHT;
    
-   thumbnail = malloc(thumbnail_width * thumbnail_height * sizeof(uint32_t));
+   thumbnail = (uint32_t*)malloc(thumbnail_width * thumbnail_height * sizeof(uint32_t));
    if (!thumbnail)
    {
       return false;
