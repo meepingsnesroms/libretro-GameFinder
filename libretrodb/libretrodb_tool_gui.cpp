@@ -35,15 +35,14 @@
 #include "../libretro.h"
 #include "../ugui/ugui.h"
 
+#include <string>
+
 
 #define FONT_WIDTH   8
 #define FONT_HEIGHT  8
 #define FONT_SPACING 0
 
 #define MAX_OBJECTS          100
-#define CONSOLE_MESSAGE_SIZE 200
-#define KEYBOARD_STRING_SIZE 10000
-#define QUERY_STRING_SIZE    KEYBOARD_STRING_SIZE
 
 #define TEXTBOX_PIXEL_MARGIN 1 //add 1 pixel border around text
 #define TEXTBOX_PIXEL_WIDTH  (SCREEN_WIDTH / 4 * 3) //3/4 of the screen
@@ -58,8 +57,8 @@
 
 
 //paths
-char database_path[PATH_MAX_LENGTH];
-char assets_path[PATH_MAX_LENGTH];
+std::string database_path;
+std::string assets_path;
 
 //db access
 int rv;
@@ -67,7 +66,7 @@ libretrodb_t *db;
 libretrodb_cursor_t *cur;
 libretrodb_query_t *q;
 struct rmsgpack_dom_value item;
-const char *command, *path, *error;
+const char *command, *error;
 bool last_db_call_success;
 
 //screen
@@ -82,39 +81,38 @@ int        thumbnail_width;
 int        thumbnail_height;
 
 //list items
-char       textbox_string[ITEM_LIST_ENTRYS][ITEM_STRING_SIZE];
+char       textbox_string[ITEM_LIST_ENTRYS][ITEM_STRING_SIZE];//must remain char array for ugui support
 UG_TEXTBOX list_entrys[ITEM_LIST_ENTRYS];
 int        list_index_action[ITEM_LIST_ENTRYS];
 int        list_index_action_param[ITEM_LIST_ENTRYS];
 int64_t    list_length;
 int64_t    selected_entry;
-char       selected_entry_full_name[PATH_MAX_LENGTH];
+std::string selected_entry_full_name;
 int        back_button_action;
 int64_t    (*list_handler)(int64_t index);
 
 //keyboard
-bool       typing_mode;
-char       console_message[CONSOLE_MESSAGE_SIZE];
-char       kbd_str[KEYBOARD_STRING_SIZE];
-int        kbd_str_index;
-void       (*process_kbd_string)();
+bool        typing_mode;
+std::string console_message;
+std::string kbd_str;
+void  (*process_kbd_string)();
 
 //query
-bool       use_query;
-char       game_list_query[QUERY_STRING_SIZE];
+bool        use_query;
+std::string game_list_query;
 
 //simple query
 //also uses query fields above
-int        query_section;//what property in the query is being entered
-char       query_name[1000];
-int        query_start_year;
-int        query_end_year;
-int        query_start_month;
-int        query_end_month;
-char       query_genre[100];
-char       query_developer[100];
-char       query_tags[1000];
-char       query_platform[100];//used if you use a merged list with games for all platforms
+int         query_section;//what property in the query is being entered
+std::string query_name;
+int         query_start_year;
+int         query_end_year;
+int         query_start_month;
+int         query_end_month;
+std::string query_genre;
+std::string query_developer;
+std::string query_tags;
+std::string query_platform;//used if you use a merged list with games for all platforms
 
 
 static void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
@@ -122,27 +120,7 @@ static void write_pixel(UG_S16 x, UG_S16 y, UG_COLOR color)
    framebuffer[y * SCREEN_WIDTH + x] = color;
 }
 
-static void make_path_from_name(char* path, char* game_name)
-{
-   int total_filename_length;
-   
-   total_filename_length =  strlen(assets_path);
-   total_filename_length += strlen(game_name);
-   total_filename_length += strlen(".png");
-   
-   if (total_filename_length <= PATH_MAX_LENGTH)
-   {
-      strcpy(path, assets_path);
-      strcat(path, game_name);
-      strcat(path, ".png");
-   }
-   else
-   {
-      path[0] = '\0';
-   }
-}
-
-static void draw_thumbnail(char* path)
+static void draw_thumbnail(std::string path)
 {
    get_file_thumbnail(path, thumbnail, thumbnail_width, thumbnail_height);
    copy_rect(thumbnail_width, thumbnail_height, thumbnail, 0/*fb1 start x*/, 0/*fb1 start y*/, thumbnail_width, thumbnail_height, SCREEN_WIDTH, SCREEN_HEIGHT, framebuffer, TEXTBOX_PIXEL_WIDTH, 0/*fb2 start y*/);
@@ -163,7 +141,7 @@ static int64_t list_games(int64_t index)
    if (use_query)
    {
       error = NULL;
-      q = (libretrodb_query_t*)libretrodb_query_compile(db, game_list_query, strlen(game_list_query), &error);
+      q = (libretrodb_query_t*)libretrodb_query_compile(db, game_list_query.c_str(), strlen(game_list_query.c_str()), &error);
       
       if (error)
       {
@@ -215,21 +193,14 @@ static int64_t list_games(int64_t index)
                      
                      if (items_returned == selected_entry % ITEM_LIST_ENTRYS)//TODO: make define for page number
                      {
-                        char thumbnail_path[PATH_MAX_LENGTH];
+                        selected_entry_full_name = std::string(item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
                         
-                        if (item.val.map.items[i].value.val.string.len < PATH_MAX_LENGTH)
-                        {
-                           strncpy(selected_entry_full_name, item.val.map.items[i].value.val.string.buff, item.val.map.items[i].value.val.string.len);
-                           selected_entry_full_name[item.val.map.items[i].value.val.string.len] = '\0';
-                        }
-                        else
-                        {
-                           //this variable is only good if it can store the full name, so theres no point in storing a partial name
-                           selected_entry_full_name[0] = '\0';
-                        }
-                        
-                        make_path_from_name(thumbnail_path, selected_entry_full_name);
-                        draw_thumbnail(thumbnail_path);
+                        std::string png_path =  assets_path;
+                        png_path += path_default_slash();
+                        png_path += selected_entry_full_name;
+                        png_path += ".png";
+                        //libretro_log_printf("Png path '%s'\n", png_path.c_str());//test
+                        draw_thumbnail(png_path);
                      }
                      
                      items_returned++;
@@ -288,7 +259,7 @@ static void run_text_query()
    memcpy(framebuffer, backup_fb, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));//restore list mode framebuffer
    back_button_action = MAIN_MENU;
    use_query = true;
-   strcpy(game_list_query, kbd_str);
+   game_list_query = kbd_str;
    list_handler = list_games;
    selected_entry = 0;//put cursor at top of the list
    list_games(0);
@@ -297,55 +268,34 @@ static void run_text_query()
 static void set_text_query()
 {
    typing_mode = true;
-   kbd_str[0] = '\0';
-   kbd_str_index = 0;
+   kbd_str.clear();
    process_kbd_string = run_text_query;
    
-   strcpy(console_message, "Enter your text query:\n");
+   console_message = "Enter your text query:\n";
    
    memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
    UG_ConsoleSetArea(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
    UG_ConsoleClear();
-   UG_ConsolePutString(console_message);
+   UG_ConsolePutString((char*)console_message.c_str());
 }
 
 static void build_query_from_params()
 {
-   int full_query_length = 0;
    bool had_former_entry = false;//used to place commas after entrys
    
-   full_query_length += strlen("{");
-   if (query_name[0] != '\0')
+   game_list_query.clear();
+   game_list_query += "{";
+   if (!query_name.empty())
    {
-      full_query_length += strlen("'name':glob('*");
-      full_query_length += strlen(query_name);
-      full_query_length += strlen("*')");
+      game_list_query += "'name':glob('*";
+      game_list_query += query_name;
+      game_list_query += "*')";
       had_former_entry = true;
    }
    
    //TODO: add other query types
    
-   full_query_length += strlen("}");
-   
-   
-   if (full_query_length < QUERY_STRING_SIZE)
-   {
-      //query length is known to be safe, now build query
-      had_former_entry = false;
-      game_list_query[0] = '\0';
-      strcat(game_list_query, "{");
-      if (query_name[0] != '\0')
-      {
-         strcat(game_list_query, "'name':glob('*");
-         strcat(game_list_query, query_name);
-         strcat(game_list_query, "*')");
-         had_former_entry = true;
-      }
-      
-      //TODO: add other query types
-      
-      strcat(game_list_query, "}");
-   }
+   game_list_query += "}";
 }
 
 static void process_simple_query()
@@ -355,33 +305,24 @@ static void process_simple_query()
    {
       case QUERY_START:
          typing_mode = true;
-         kbd_str[0] = '\0';
-         kbd_str_index = 0;
+         kbd_str.erase();
          
-         strcpy(console_message, "Enter full or partial game name, value is case sensitive:\n");
+         console_message = "Enter full or partial game name, value is case sensitive:\n";
          
          //render first frame
          memcpy(backup_fb, framebuffer, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
          UG_ConsoleSetArea(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
          UG_ConsoleClear();
-         UG_ConsolePutString(console_message);
+         UG_ConsolePutString((char*)console_message.c_str());
          
          query_section++;
          break;
       case NAME:
-         if (strlen(kbd_str) < 1000)
-         {
-            strcpy(query_name, kbd_str);
-         }
-         else
-         {
-            query_name[0] = '\0';
-         }
+         query_name = kbd_str;
          
          //stay in typing mode for the next section
          //typing_mode = true;
-         kbd_str[0] = '\0';
-         kbd_str_index = 0;
+         kbd_str.erase();
          
          query_section++;
          break;
@@ -410,16 +351,15 @@ static void set_simple_query()
 bool init_gui_db_tool()
 {
    int passed;
-   path = database_path;
    db   = libretrodb_new();
    cur  = libretrodb_cursor_new();
    
    if (!db || !cur)
       return false;
    
-   if ((rv = libretrodb_open(path, db)) != 0)
+   if ((rv = libretrodb_open(database_path.c_str(), db)) != 0)
    {
-      libretro_log_printf("Could not open db file '%s': %s\n", path, strerror(-rv));
+      libretro_log_printf("Could not open db file '%s': %s\n", database_path.c_str(), strerror(-rv));
       return false;
    }
    
@@ -449,20 +389,19 @@ bool init_gui_db_tool()
    
    
    //resolve assets directory
-   char database_name[PATH_MAX_LENGTH];
-   strcpy(database_name, database_path);
-   path_remove_extension(database_name);
-   char* asset_dir_name = find_last_slash(database_name);
-   asset_dir_name++;//dont count the found slash
+   std::string platform_name = database_path;
+   platform_name.erase(platform_name.begin(), platform_name.begin() + platform_name.rfind(path_default_slash()) + 1);
+   platform_name.erase(platform_name.begin() + platform_name.rfind("."), platform_name.end());
+   //libretro_log_printf("platform name path '%s'\n", platform_name.c_str());//test
    
-   fill_pathname_basedir(assets_path, database_path, PATH_MAX_LENGTH);
-   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
-   strncat(assets_path, "assets", PATH_MAX_LENGTH - strlen(assets_path));
-   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
-   strncat(assets_path, asset_dir_name, PATH_MAX_LENGTH - strlen(assets_path));
-   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
-   strncat(assets_path, "Named_Boxarts", PATH_MAX_LENGTH - strlen(assets_path));
-   fill_pathname_slash(assets_path, PATH_MAX_LENGTH);
+   assets_path = database_path;
+   assets_path.erase(assets_path.begin() + assets_path.rfind(path_default_slash()) + 1, assets_path.end());
+   //libretro_log_printf("assets path '%s'\n", assets_path.c_str());//test
+   assets_path += "assets";
+   assets_path += path_default_slash();
+   assets_path += platform_name;
+   assets_path += path_default_slash();
+   assets_path += "Named_Boxarts";
    
    
    //thumbnails
@@ -527,7 +466,7 @@ static void run_action(int action)
 
 static void typing_mode_frame()
 {
-   int kbd_key = 0;
+   int kbd_key = 0;//keys go above char key limit of 255
    
    for (int i = 0; i < KEYBOARD_KEY_COUNT; i++)
    {
@@ -540,74 +479,70 @@ static void typing_mode_frame()
    
    if (kbd_key >= 32/*space*/ && kbd_key <= 126)
    {
-      if (kbd_str_index < KEYBOARD_STRING_SIZE - 1/*null terminator*/)
+      if (keyboard_keys[RETROK_LSHIFT] || keyboard_keys[RETROK_RSHIFT])
       {
-         if (keyboard_keys[RETROK_LSHIFT] || keyboard_keys[RETROK_RSHIFT])
+         if (kbd_key >= 'a' && kbd_key <= 'z')
          {
-            if (kbd_key >= 'a' && kbd_key <= 'z')
-            {
-               //make uppercase letter
-               kbd_key -= 32;
-            }
-            else if (kbd_key >= '[' && kbd_key <= ']')
-            {
-               //swap special chars
-               kbd_key += 32;
-            }
-            else if (kbd_key == ';')
-            {
-               kbd_key = ':';
-            }
-            else if (kbd_key == '1')
-            {
-               kbd_key = '!';
-            }
-            else if (kbd_key == '2')
-            {
-               kbd_key = '@';
-            }
-            else if (kbd_key == '3')
-            {
-               kbd_key = '#';
-            }
-            else if (kbd_key == '4')
-            {
-               kbd_key = '$';
-            }
-            else if (kbd_key == '5')
-            {
-               kbd_key = '%';
-            }
-            else if (kbd_key == '6')
-            {
-               kbd_key = '^';
-            }
-            else if (kbd_key == '7')
-            {
-               kbd_key = '&';
-            }
-            else if (kbd_key == '8')
-            {
-               kbd_key = '*';
-            }
-            else if (kbd_key == '9')
-            {
-               kbd_key = '(';
-            }
-            else if (kbd_key == '0')
-            {
-               kbd_key = ')';
-            }
+            //make uppercase letter
+            kbd_key -= 32;
          }
-         
-         kbd_str[kbd_str_index] = kbd_key;
-         kbd_str[kbd_str_index + 1] = '\0';
-         kbd_str_index++;
-         
-         UG_ConsoleClear();
-         UG_ConsolePutString(console_message);
-         UG_ConsolePutString(kbd_str);
+         else if (kbd_key >= '[' && kbd_key <= ']')
+         {
+            //swap special chars
+            kbd_key += 32;
+         }
+         else if (kbd_key == ';')
+         {
+            kbd_key = ':';
+         }
+         else if (kbd_key == '1')
+         {
+            kbd_key = '!';
+         }
+         else if (kbd_key == '2')
+         {
+            kbd_key = '@';
+         }
+         else if (kbd_key == '3')
+         {
+            kbd_key = '#';
+         }
+         else if (kbd_key == '4')
+         {
+            kbd_key = '$';
+         }
+         else if (kbd_key == '5')
+         {
+            kbd_key = '%';
+         }
+         else if (kbd_key == '6')
+         {
+            kbd_key = '^';
+         }
+         else if (kbd_key == '7')
+         {
+            kbd_key = '&';
+         }
+         else if (kbd_key == '8')
+         {
+            kbd_key = '*';
+         }
+         else if (kbd_key == '9')
+         {
+            kbd_key = '(';
+         }
+         else if (kbd_key == '0')
+         {
+            kbd_key = ')';
+         }
       }
+      
+      kbd_str += (char)kbd_key;
+      
+      UG_ConsoleClear();
+      UG_ConsolePutString((char*)console_message.c_str());
+      //libretro_log_printf("KbdStr:%s\n", kbd_str.c_str());
+      UG_ConsolePutString((char*)kbd_str.c_str());
    }
    else if (kbd_key == RETROK_RETURN)
    {
@@ -624,14 +559,14 @@ static void typing_mode_frame()
    }
    else if (kbd_key == RETROK_BACKSPACE/*delete*/)
    {
-      if (kbd_str_index > 0)
+      if (kbd_str.length() > 0)
       {
-         kbd_str_index--;
-         kbd_str[kbd_str_index] = '\0';
+         libretro_log_printf("KbdStr len:%s\n", kbd_str.length());
+         kbd_str.erase(kbd_str.end());//equivelent of pop_back in c++11
          
          UG_ConsoleClear();
-         UG_ConsolePutString(console_message);
-         UG_ConsolePutString(kbd_str);
+         UG_ConsolePutString((char*)console_message.c_str());
+         UG_ConsolePutString((char*)kbd_str.c_str());
       }
    }
 }

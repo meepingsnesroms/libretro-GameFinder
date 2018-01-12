@@ -2,6 +2,8 @@
 #include <string.h>
 #include <formats/image.h>
 
+#include <string>
+
 void copy_rect(unsigned fb1_w, unsigned fb1_h, uint32_t* fb1_data, unsigned fb1_x, unsigned fb1_y, unsigned rect_w, unsigned rect_h, unsigned fb2_w, unsigned fb2_h, uint32_t* fb2_data, unsigned fb2_x, unsigned fb2_y)
 {
    for(unsigned y = 0; y < rect_h; y++)
@@ -35,14 +37,14 @@ void simple_float_scale(unsigned w, unsigned h, uint32_t* data, unsigned out_w, 
    }
 }
 
-void get_file_thumbnail(const char* path, uint32_t* output_buffer, unsigned width, unsigned height)
+void get_file_thumbnail(std::string path, uint32_t* output_buffer, unsigned width, unsigned height)
 {
    struct texture_image thumbnail_file;
    bool worked;
    
    thumbnail_file.supports_rgba = false;
    
-   worked = image_texture_load(&thumbnail_file, path);
+   worked = image_texture_load(&thumbnail_file, path.c_str());
    
    if (worked)
    {

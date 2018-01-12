@@ -168,7 +168,7 @@ bool retro_load_game(const struct retro_game_info *info)
       return false;
    }
    
-   strcpy(database_path, info->path);
+   database_path = info->path;
    
    memset(keyboard_keys, 0, KEYBOARD_KEY_COUNT);
    

@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <retro_miscellaneous.h>
 #include "../libretro_exported.h"
+#include <string>
 
 enum ui_window
 {
@@ -37,7 +38,7 @@ enum query_propertys
    QUERY_END
 };
 
-extern char database_path[PATH_MAX_LENGTH];
+extern std::string database_path;
 
 extern bool init_gui_db_tool();
 extern void close_gui_db_tool();
