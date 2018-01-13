@@ -561,8 +561,8 @@ static void typing_mode_frame()
    {
       if (kbd_str.length() > 0)
       {
-         libretro_log_printf("KbdStr len:%s\n", kbd_str.length());
-         kbd_str.erase(kbd_str.end());//equivelent of pop_back in c++11
+         libretro_log_printf("KbdStr len:%d\n", kbd_str.length());
+         kbd_str.erase(kbd_str.begin() + kbd_str.length() - 1);//equivelent of pop_back in c++11
          
          UG_ConsoleClear();
          UG_ConsolePutString((char*)console_message.c_str());
